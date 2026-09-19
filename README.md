@@ -35,3 +35,7 @@ Docker Compose is an optional convenience path for a full local PostgreSQL + Neo
 6. Submit a reply to `POST /webhooks/inbound-message` to demonstrate conversation classification.
 
 Run tests with `python -m pytest -q`. The design, DronaHQ wiring, and intentionally mocked providers are described in `docs/`.
+
+## Demo RBAC
+
+All manager control endpoints require `X-User-Email: manager@demo.local`. Representative workspaces require `X-User-Email: aisha@demo.local` or `vikram@demo.local`; use `/me/campaigns`, `/me/leads`, `/me/approvals`, `/me/follow-ups`, and `/me/performance`. Managers use `/team/representatives`, campaign representative recommendations, campaign/lead assignment routes, `/approvals`, and `/monitoring/representatives`. The header is a demo authentication boundary; replace it with an OIDC/JWT identity adapter for production without changing role checks or assignment scope.

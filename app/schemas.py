@@ -12,3 +12,8 @@ class QualificationResult(BaseModel): qualified: bool; score: float; reasons: li
 class OutreachDecision(BaseModel): should_contact: bool; channel: str; objective: str; message_angle: str; reasoning: str
 class PersonalizedOutreach(BaseModel): channel: str; subject: str; body: str; personalization_facts: list[str]; cta: str; reasoning: str
 class PolicyResult(BaseModel): allowed: bool; reason: str; rule: str; metadata: dict=Field(default_factory=dict)
+class CampaignAssignmentIn(BaseModel): representative_id: str
+class LeadAssignmentIn(BaseModel): representative_id: str
+class ApprovalDecisionIn(BaseModel): approved: bool; note: str=''
+class BatchApprovalDecisionIn(ApprovalDecisionIn): approval_ids: list[str]
+class RepresentativeProfileIn(BaseModel): name: str; email: str; max_active_leads: int=20; specialties: list[str]=Field(default_factory=list); regions: list[str]=Field(default_factory=list)

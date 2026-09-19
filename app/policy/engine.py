@@ -10,7 +10,7 @@ class PolicyEngine:
     if settings().global_kill_switch: return PolicyResult(allowed=False, reason='Global kill switch is active', rule='GLOBAL_KILL_SWITCH')
     if campaign.status != 'LIVE': return PolicyResult(allowed=False, reason='Campaign is not live', rule='CAMPAIGN_STATE')
     if channel not in campaign.active_channels: return PolicyResult(allowed=False, reason='Channel disabled for campaign', rule='CHANNEL_DISABLED')
-    disabled = await db.scalar(select(ChannelConfiguration).where(ChannelConfiguration.channel==channel, ChannelConfiguration.enabled==False))
+    disabled = await db.scalar(select(ChannelConfiguration).where(ChannelConfiguration.channel==channel, ChannelConfiguration.enabled==False, (ChannelConfiguration.campaign_id==None) | (ChannelConfiguration.campaign_id==campaign.id)))
     if disabled: return PolicyResult(allowed=False, reason='Channel globally paused', rule='CHANNEL_PAUSED')
     agent = await db.scalar(select(CampaignAgent).where(CampaignAgent.campaign_id==campaign.id, CampaignAgent.agent_type=='outreach'))
     if agent and not agent.enabled: return PolicyResult(allowed=False, reason='Outreach agent paused', rule='AGENT_PAUSED')
