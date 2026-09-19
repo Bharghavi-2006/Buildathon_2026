@@ -61,3 +61,19 @@ DRONAHQ_DISCOVERY_INVOKE_PATH=/api/agents/{agent_id}/invoke
 ```
 
 The backend posts campaign ICP to that published-agent endpoint and expects a JSON object (or `data`/`result` wrapper) matching `DiscoveryResult`. DronaHQ remains the agentic Apollo execution layer; FastAPI validates candidates, records the `DISCOVERY` agent run, handles conflicts/suppression, and owns all database writes. With no DronaHQ configuration, development uses a contract-compatible mock provider only.
+
+## DronaHQ Prospect Research Agent
+
+The Research Agent receives one manager-selected discovery prospect and uses **DronaHQ Web Search** to verify the person/company and collect cited ICP evidence. It does not qualify a prospect, calculate a final fit score, contact anyone, or send outreach. Trigger it with `POST /api/manager/campaigns/{campaign_id}/prospects/{prospect_id}/research`; pass `{"force_refresh": true}` only when replacing an existing research record.
+
+Create a separate DronaHQ agent configured with Web Search only. Its webhook receives `campaign_id`, `campaign_name`, campaign `icp`, and a candidate object containing discovery identifiers and any known person/company fields. It must return structured `ResearchResult` JSON: `candidate_status` (`verified`, `partially_verified`, or `unverified`), summary, person/company objects, ICP evidence items (`criterion`, `status`, `evidence`, `source`), business context, personalization signals, source URLs, and uncertainties. Array fields may be JSON-encoded strings only when they decode to arrays; malformed output is rejected.
+
+Configure the following outside source control:
+
+```text
+DRONAHQ_RESEARCH_WEBHOOK_URL=https://<published-research-webhook>
+DRONAHQ_RESEARCH_WEBHOOK_API_KEY=<webhook-key>
+DRONAHQ_RESEARCH_AGENT_ID=<research-agent-id>
+```
+
+When those variables are unset, the backend uses deterministic `MockResearchProvider` data for local development and tests. Failed provider calls and malformed responses create a failed `RESEARCH` agent run; no credentials or authorization headers are logged.

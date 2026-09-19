@@ -18,15 +18,16 @@ class DiscoveryProvider(Protocol):
 
 class DronaHQClient:
     """Thin HTTP client. The configured path accommodates tenant-specific published-agent URLs."""
-    async def invoke_agent(self, payload: dict) -> dict:
+    async def invoke_agent(self, payload: dict, *, agent_id: str|None=None, webhook_url: str|None=None, api_key: str|None=None) -> dict:
         config=settings()
-        if not (config.dronahq_base_url and config.dronahq_discovery_agent_id and config.dronahq_api_key):
+        agent_id=agent_id or config.dronahq_discovery_agent_id; api_key=api_key or config.dronahq_api_key
+        if not ((webhook_url or config.dronahq_base_url) and agent_id and api_key):
             raise DiscoveryProviderError('DISCOVERY_PROVIDER_UNAVAILABLE', 'DronaHQ Discovery Agent is not configured.')
-        path=config.dronahq_discovery_invoke_path.format(agent_id=config.dronahq_discovery_agent_id)
-        url=f'{config.dronahq_base_url.rstrip("/")}/{path.lstrip("/")}'
+        path=config.dronahq_discovery_invoke_path.format(agent_id=agent_id)
+        url=webhook_url or f'{config.dronahq_base_url.rstrip("/")}/{path.lstrip("/")}'
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                response=await client.post(url,json=payload,headers={'Authorization':f'Bearer {config.dronahq_api_key}','X-API-Key':config.dronahq_api_key})
+                response=await client.post(url,json=payload,headers={'Authorization':f'Bearer {api_key}','X-API-Key':api_key})
         except httpx.TimeoutException as exc:
             raise DiscoveryProviderError('DISCOVERY_TIMEOUT','Lead discovery timed out.') from exc
         except httpx.HTTPError as exc:

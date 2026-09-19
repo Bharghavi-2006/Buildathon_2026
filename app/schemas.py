@@ -35,3 +35,7 @@ class DiscoveryCandidate(BaseModel):
     fit_score: float=Field(ge=0,le=100); fit_reasons: list[str]=Field(default_factory=list); matched_criteria: list[str]=Field(default_factory=list); unmatched_criteria: list[str]=Field(default_factory=list); confidence: Literal['HIGH','MEDIUM','LOW']
 class DiscoveryResult(BaseModel):
     campaign_id: str; candidates: list[DiscoveryCandidate]=Field(default_factory=list); total_found: int=Field(ge=0); search_summary: str=''; execution_id: str|None=None
+class ResearchRequestIn(BaseModel): force_refresh: bool=False
+class IcpEvidence(BaseModel): criterion: str; status: Literal['MATCHED','UNMATCHED','UNVERIFIED']; evidence: str; source: str=''
+class ResearchResult(BaseModel):
+    campaign_id: str; candidate_status: Literal['verified','partially_verified','unverified']; research_summary: str; person_research: dict=Field(default_factory=dict); company_research: dict=Field(default_factory=dict); icp_evidence: list[IcpEvidence]=Field(default_factory=list); business_context: list[str]=Field(default_factory=list); personalization_signals: list[str]=Field(default_factory=list); sources: list[str]=Field(default_factory=list); uncertainties: list[str]=Field(default_factory=list); execution_id: str|None=None

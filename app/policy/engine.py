@@ -6,6 +6,12 @@ from app.db.models import Campaign, CampaignAgent, CampaignProspect, Suppression
 from app.schemas import PolicyResult
 
 class PolicyEngine:
+  async def check_agent_execution(self, db: AsyncSession, campaign: Campaign, agent_type: str) -> PolicyResult:
+    if settings().global_kill_switch: return PolicyResult(allowed=False,reason='Global kill switch is active',rule='GLOBAL_KILL_SWITCH')
+    if campaign.status=='PAUSED': return PolicyResult(allowed=False,reason='Campaign is currently paused by the manager.',rule='CAMPAIGN_PAUSED')
+    agent=await db.scalar(select(CampaignAgent).where(CampaignAgent.campaign_id==campaign.id,CampaignAgent.agent_type.in_([agent_type,agent_type.lower()])))
+    if agent and not agent.enabled: return PolicyResult(allowed=False,reason=f'{agent_type} agent is paused by the manager.',rule='AGENT_PAUSED')
+    return PolicyResult(allowed=True,reason='Agent execution allowed',rule='ALLOWED')
   async def check(self, db: AsyncSession, campaign: Campaign, prospect_id: str, channel: str, representative_id: str|None=None, agent_type: str|None=None) -> PolicyResult:
     if settings().global_kill_switch: return PolicyResult(allowed=False, reason='Global kill switch is active', rule='GLOBAL_KILL_SWITCH')
     if campaign.status != 'LIVE': return PolicyResult(allowed=False, reason='Campaign is currently paused by the manager.', rule='CAMPAIGN_PAUSED')

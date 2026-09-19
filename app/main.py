@@ -109,7 +109,8 @@ async def full_run(id:str,db:AsyncSession=Depends(get_session),identity=Depends(
 async def discover(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     raise HTTPException(410,'Use /api/manager/campaigns/{campaign_id}/prospects/discover for DronaHQ Discovery Agent execution')
 @app.post('/campaigns/{id}/research')
-async def research(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return await execute(id,'research',db)
+async def research(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    raise HTTPException(410,'Use /api/manager/campaigns/{campaign_id}/prospects/{prospect_id}/research for DronaHQ Research Agent execution')
 @app.post('/campaigns/{id}/qualify')
 async def qualification(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return await execute(id,'qualify',db)
 @app.post('/campaigns/{id}/outreach')

@@ -20,6 +20,9 @@ class Settings:
     dronahq_discovery_agent_id: str = os.getenv('DRONAHQ_DISCOVERY_AGENT_ID', '')
     dronahq_api_key: str = os.getenv('DRONAHQ_API_KEY', '')
     dronahq_discovery_invoke_path: str = os.getenv('DRONAHQ_DISCOVERY_INVOKE_PATH', '/api/agents/{agent_id}/invoke')
+    dronahq_research_webhook_url: str = os.getenv('DRONAHQ_RESEARCH_WEBHOOK_URL', '')
+    dronahq_research_webhook_api_key: str = os.getenv('DRONAHQ_RESEARCH_WEBHOOK_API_KEY', '')
+    dronahq_research_agent_id: str = os.getenv('DRONAHQ_RESEARCH_AGENT_ID', '')
 
 @lru_cache
 def settings() -> Settings: return Settings()

@@ -7,6 +7,8 @@ from app.db.session import get_session
 from app.db.models import *
 from app.schemas import *
 from app.discovery.service import DiscoveryService, DiscoveryProviderError
+from app.research.service import ResearchService
+from app.policy.engine import PolicyEngine
 from app.core.config import settings
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
@@ -134,6 +136,35 @@ async def discovery_run(id:str,run_id:str,db:AsyncSession=Depends(get_session),i
     if not run or run.campaign_id!=id or run.agent_type!='DISCOVERY': raise HTTPException(404,'Discovery run not found')
     data=run.output_data or {}
     return {'run_id':run.id,'status':run.status,'candidate_count':data.get('candidate_count',0),'started_at':run.created_at,'completed_at':run.updated_at if run.status in ['COMPLETED','FAILED'] else None,'error':data.get('error'),'dronahq_execution_id':data.get('dronahq_execution_id'),'tool':data.get('tool','APOLLO')}
+@router.post('/campaigns/{id}/prospects/{prospect_id}/research')
+async def research_prospect(id:str,prospect_id:str,data:ResearchRequestIn=ResearchRequestIn(),db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db)
+    cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id))
+    if not cp: raise HTTPException(404,'Prospect is not selected for this campaign')
+    p=await db.get(Prospect,prospect_id)
+    source_data=p.metadata_ or {}
+    if not source_data.get('source_id'): raise HTTPException(409,'Prospect has no discovery source information')
+    existing=await db.scalar(select(ProspectResearch).where(ProspectResearch.campaign_id==id,ProspectResearch.prospect_id==prospect_id).order_by(ProspectResearch.updated_at.desc()))
+    if existing and not data.force_refresh: return out(existing)
+    running=await db.scalar(select(AgentRun).where(AgentRun.campaign_id==id,AgentRun.prospect_id==prospect_id,AgentRun.agent_type=='RESEARCH',AgentRun.status.in_(['QUEUED','RUNNING'])))
+    if running: raise HTTPException(409,detail={'code':'RESEARCH_ALREADY_RUNNING','run_id':running.id})
+    allowed=await PolicyEngine().check_agent_execution(db,c,'RESEARCH')
+    if not allowed.allowed: raise HTTPException(409,detail={'code':allowed.rule,'message':allowed.reason})
+    icp={'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size}
+    candidate={'source':source_data.get('discovery_source'),'source_id':source_data['source_id'],'person_name':f'{p.first_name} {p.last_name}'.strip(),'first_name':p.first_name,'last_name':p.last_name,'title':p.title,'email':p.email,'linkedin_url':p.linkedin_url,'company_name':source_data.get('company_name'),'company_domain':p.website,'company_size':p.employee_count,'industry':p.industry,'source_url':source_data.get('source_url',''),'discovery_signals':source_data.get('discovery_signals',[]),'unverified_criteria':source_data.get('unmatched_criteria',[])}
+    run=AgentRun(campaign_id=id,prospect_id=prospect_id,agent_type='RESEARCH',status='RUNNING',input_data={'candidate_source_id':candidate['source_id'],'tool':'WEB_SEARCH'}); db.add(run); await db.flush()
+    try:
+        result=await ResearchService().research_candidate(id,c.name,icp,candidate)
+    except DiscoveryProviderError as exc:
+        run.status='FAILED'; run.output_data={'error_code':exc.code,'error':exc.message,'tool':'WEB_SEARCH'}; audit(db,'RESEARCH_FAILED','agent_run',run.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id,'reason':exc.code}); await db.commit(); raise HTTPException(503,detail={'code':exc.code,'message':exc.message,'run_id':run.id})
+    values={'status':result.candidate_status,'research_summary':result.research_summary,'person_research':result.person_research,'company_research':result.company_research,'icp_evidence':[x.model_dump() for x in result.icp_evidence],'business_context':result.business_context,'personalization_signals':result.personalization_signals,'sources':result.sources,'uncertainties':result.uncertainties,'agent_run_id':run.id}
+    if existing:
+        for key,value in values.items(): setattr(existing,key,value)
+        record=existing
+    else:
+        record=ProspectResearch(campaign_id=id,prospect_id=prospect_id,**values); db.add(record); await db.flush()
+    run.status='COMPLETED'; run.output_data={'tool':'WEB_SEARCH','dronahq_execution_id':result.execution_id,'research_id':record.id,'candidate_status':result.candidate_status}; p.lifecycle_status='RESEARCHED'
+    audit(db,'RESEARCH_COMPLETED','prospect_research',record.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id,'run_id':run.id}); await db.commit(); return out(record)
 @router.post('/campaigns/{id}/prospects/import')
 async def import_prospects(id:str,data:ProspectImportIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); ids=[]
