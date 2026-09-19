@@ -1,0 +1,1 @@
+"""Autonomous SDR modular monolith."""

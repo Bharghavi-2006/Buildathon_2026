@@ -1,0 +1,4 @@
+.env
+sdr.db
+__pycache__/
+.pytest_cache/
