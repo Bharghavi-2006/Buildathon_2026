@@ -12,6 +12,7 @@ from app.agents.mock import qualify, strategy, personalize
 from app.rag.retriever import SimpleRetriever
 from app.core.config import settings
 from app.api.auth import current_identity, require_manager
+from app.api.manager import router as manager_router
 
 @asynccontextmanager
 async def lifespan(app):
@@ -20,6 +21,7 @@ async def lifespan(app):
     async with SessionLocal() as db: await seed(db)
     yield
 app=FastAPI(title='Autonomous SDR Platform',version='0.1.0',lifespan=lifespan)
+app.include_router(manager_router)
 def dump(x):
     # Mapper attributes (rather than SQL column names) handle reserved names safely.
     return {attr.key:getattr(x,attr.key) for attr in sa_inspect(x).mapper.column_attrs}

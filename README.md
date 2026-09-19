@@ -39,3 +39,7 @@ Run tests with `python -m pytest -q`. The design, DronaHQ wiring, and intentiona
 ## Demo RBAC
 
 All manager control endpoints require `X-User-Email: manager@demo.local`. Representative workspaces require `X-User-Email: aisha@demo.local` or `vikram@demo.local`; use `/me/campaigns`, `/me/leads`, `/me/approvals`, `/me/follow-ups`, and `/me/performance`. Managers use `/team/representatives`, campaign representative recommendations, campaign/lead assignment routes, `/approvals`, and `/monitoring/representatives`. The header is a demo authentication boundary; replace it with an OIDC/JWT identity adapter for production without changing role checks or assignment scope.
+
+## Manager campaign launch API
+
+The campaign creation vertical slice is available at `/api/manager`: dashboard, draft creation, identity/ICP, agents, deterministic prospect discovery/import/preview/selection, channels, prompts, launch check, activation, and lifecycle actions. Configure a draft, call `GET /api/manager/campaigns/{id}/launch-check`, then call `/activate` only when `ready` is true. All endpoints require the manager demo identity header.
