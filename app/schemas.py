@@ -25,3 +25,6 @@ class ProspectImportIn(BaseModel): prospects: list[ProspectIn]
 class ProspectSelectIn(BaseModel): prospect_ids: list[str]
 class ChannelSettingsIn(BaseModel): channels: list[dict]
 class PromptIn(BaseModel): agent_type: str; prompt_text: str; configuration: dict=Field(default_factory=dict)
+class ApprovalEditIn(BaseModel): content: str
+class ApprovalRejectIn(BaseModel): reason: str
+class BatchApprovalIn(BaseModel): approval_ids: list[str]

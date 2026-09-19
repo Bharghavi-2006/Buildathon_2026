@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import require_manager
 from app.db.session import get_session
 from app.db.models import *
 from app.schemas import *
 from app.discovery.mock import MockLeadDiscoveryProvider
+from app.core.config import settings
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
 def out(x): return {a.key:getattr(x,a.key) for a in __import__('sqlalchemy').inspect(x).mapper.column_attrs}
@@ -74,7 +76,32 @@ async def agent_pause(id:str,agent_id:str,action:str,db:AsyncSession=Depends(get
     if action not in ['pause','resume']: raise HTTPException(404,'Unknown action')
     a=await db.get(CampaignAgent,agent_id)
     if not a or a.campaign_id!=id: raise HTTPException(404,'Campaign agent not found')
-    a.enabled=action=='resume'; audit(db,'AGENT_ENABLED' if a.enabled else 'AGENT_DISABLED','campaign_agent',a.id); await db.commit(); return out(a)
+    previous='ENABLED' if a.enabled else 'PAUSED'; a.enabled=action=='resume'; audit(db,'AGENT_RESUMED' if a.enabled else 'AGENT_PAUSED','campaign_agent',a.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'previous_state':previous,'new_state':'ENABLED' if a.enabled else 'PAUSED'}); await db.commit(); return {**out(a),'status':'ENABLED' if a.enabled else 'PAUSED'}
+@router.post('/campaigns/{id}/channels/{channel}/{action}')
+async def channel_pause(id:str,channel:str,action:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    if action not in ['pause','resume'] or channel.lower() not in ['email','linkedin','message','voice']: raise HTTPException(404,'Unknown channel action')
+    await campaign(id,db); channel=channel.lower()
+    row=await db.scalar(select(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==id,CampaignChannelSettings.channel==channel))
+    if not row: row=CampaignChannelSettings(campaign_id=id,channel=channel,enabled=True); db.add(row)
+    previous='ENABLED' if row.enabled else 'PAUSED'; row.enabled=action=='resume'
+    audit(db,'CHANNEL_RESUMED' if row.enabled else 'CHANNEL_PAUSED','campaign_channel',row.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'channel':channel,'previous_state':previous,'new_state':'ENABLED' if row.enabled else 'PAUSED'})
+    await db.commit(); return {**out(row),'status':'ENABLED' if row.enabled else 'PAUSED'}
+@router.get('/approvals/summary')
+async def approval_summary(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
+    rows=(await db.execute(select(ApprovalRequest,User).join(User,ApprovalRequest.representative_id==User.id).where(ApprovalRequest.status=='PENDING'))).all()
+    grouped={}
+    for approval,user in rows:
+        item=grouped.setdefault(user.id,{'representative_id':user.id,'representative':user.name,'pending':0,'aging':0,'campaign_ids':[]})
+        item['pending']+=1; item['aging']+=approval.created_at < threshold
+        if approval.campaign_id not in item['campaign_ids']: item['campaign_ids'].append(approval.campaign_id)
+    oldest=min((x.created_at for x,_ in rows),default=None)
+    return {'total_pending':len(rows),'aging_count':sum(x.created_at < threshold for x,_ in rows),'oldest_age_hours':int((datetime.utcnow()-oldest).total_seconds()/3600) if oldest else 0,'aging_threshold_hours':settings().approval_aging_threshold_hours,'by_representative':list(grouped.values())}
+@router.get('/approvals/aging')
+async def aging_approvals(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
+    rows=(await db.execute(select(ApprovalRequest,User,Campaign,CampaignProspect,Prospect).join(User,ApprovalRequest.representative_id==User.id).join(Campaign,ApprovalRequest.campaign_id==Campaign.id).outerjoin(CampaignProspect,ApprovalRequest.campaign_prospect_id==CampaignProspect.id).outerjoin(Prospect,CampaignProspect.prospect_id==Prospect.id).where(ApprovalRequest.status=='PENDING',ApprovalRequest.created_at < threshold))).all()
+    return [{'approval_id':a.id,'representative':{'id':u.id,'name':u.name},'campaign':{'id':c.id,'name':c.name},'prospect':dump(p) if p else None,'age_hours':int((datetime.utcnow()-a.created_at).total_seconds()/3600),'channel':a.payload.get('channel','email'),'message_preview':a.payload.get('message',a.payload.get('summary',''))[:200],'created_at':a.created_at,'status':'AGING'} for a,u,c,cp,p in rows]
 @router.post('/campaigns/{id}/prospects/discover')
 async def discover(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await draft(id,db); found=[]
@@ -155,4 +182,4 @@ async def lifecycle(id:str,action:str,db:AsyncSession=Depends(get_session),ident
     c=await campaign(id,db)
     if action=='pause' and c.status!='LIVE': raise HTTPException(409,'Only live campaigns can be paused')
     if action=='resume' and c.status!='PAUSED': raise HTTPException(409,'Only paused campaigns can resume')
-    c.status='PAUSED' if action=='pause' else 'LIVE'; audit(db,'CAMPAIGN_PAUSED' if action=='pause' else 'CAMPAIGN_RESUMED','campaign',id); await db.commit(); return out(c)
+    previous=c.status; c.status='PAUSED' if action=='pause' else 'LIVE'; audit(db,'CAMPAIGN_PAUSED' if action=='pause' else 'CAMPAIGN_RESUMED','campaign',id,{'actor':identity[0].id,'role':'MANAGER','previous_state':previous,'new_state':c.status}); await db.commit(); return out(c)

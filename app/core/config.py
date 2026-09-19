@@ -14,6 +14,7 @@ class Settings:
     neo4j_password: str = os.getenv('NEO4J_PASSWORD', '')
     demo_mode: bool = os.getenv('DEMO_MODE', 'true').lower() == 'true'
     global_kill_switch: bool = os.getenv('GLOBAL_KILL_SWITCH', 'false').lower() == 'true'
+    approval_aging_threshold_hours: int = int(os.getenv('APPROVAL_AGING_THRESHOLD_HOURS', '24'))
     llm_provider: str = os.getenv('LLM_PROVIDER', 'mock')
 
 @lru_cache
