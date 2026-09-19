@@ -1,6 +1,10 @@
 from functools import lru_cache
 from dataclasses import dataclass
 import os
+from dotenv import load_dotenv
+
+# Optional local configuration. The app still runs when no .env file exists.
+load_dotenv()
 
 @dataclass
 class Settings:

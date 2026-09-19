@@ -2,11 +2,28 @@
 
 Policy-controlled, multi-channel SDR backend for the GTM AI Buildathon. PostgreSQL is the transactional source of truth; Neo4j is the relationship intelligence projection. Agents propose actions, but the deterministic policy engine authorizes them.
 
-## Run locally
+## Run directly with Uvicorn (recommended)
 
-Install dependencies with `python -m pip install -r requirements.txt`, then start with `uvicorn app.main:app --reload`. The service uses a SQLite demo fallback locally and seeds three live campaigns and synthetic prospects at startup. API docs are available at `http://localhost:8000/docs`.
+No Docker, PostgreSQL, or Neo4j installation is needed for local development. From the repository root:
 
-For the full stack, copy `.env.example` to `.env` and run `docker compose up --build`. This starts the backend, PostgreSQL, and Neo4j.
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+
+The default configuration uses a local SQLite database (`sdr.db`) and mock/demo providers. It automatically seeds three live campaigns and synthetic prospects. API docs are at `http://localhost:8000/docs`.
+
+For a direct non-container deployment, install the same requirements, set `DATABASE_URL` to a managed PostgreSQL `postgresql+asyncpg://...` URL, and run:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Neo4j remains optional: leave `NEO4J_URI` empty when relationship projection is not needed.
+
+## Optional Docker deployment
+
+Docker Compose is an optional convenience path for a full local PostgreSQL + Neo4j stack. Run `docker compose up --build`; its Compose configuration supplies the container-specific database settings. It is not required for development or deployment.
 
 ## Five-minute demo
 
