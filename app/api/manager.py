@@ -6,7 +6,7 @@ from app.api.auth import require_manager
 from app.db.session import get_session
 from app.db.models import *
 from app.schemas import *
-from app.discovery.mock import MockLeadDiscoveryProvider
+from app.discovery.service import DiscoveryService, DiscoveryProviderError
 from app.core.config import settings
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
@@ -46,7 +46,7 @@ async def alerts(identity=Depends(require_manager)): return []
 @router.post('/campaigns')
 async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=Campaign(name=data.name,description=data.description,status='DRAFT'); db.add(c); await db.flush(); db.add(CampaignSetup(campaign_id=c.id,owner_id=identity[0].id))
-    for agent_type in ['ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']: db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=False))
+    for agent_type in ['DISCOVERY','ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']: db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=False))
     audit(db,'CAMPAIGN_CREATED','campaign',c.id); await db.commit(); return out(c)
 @router.patch('/campaigns/{id}/identity')
 async def identity_config(id:str,data:IdentityIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
@@ -103,13 +103,37 @@ async def aging_approvals(db:AsyncSession=Depends(get_session),identity=Depends(
     rows=(await db.execute(select(ApprovalRequest,User,Campaign,CampaignProspect,Prospect).join(User,ApprovalRequest.representative_id==User.id).join(Campaign,ApprovalRequest.campaign_id==Campaign.id).outerjoin(CampaignProspect,ApprovalRequest.campaign_prospect_id==CampaignProspect.id).outerjoin(Prospect,CampaignProspect.prospect_id==Prospect.id).where(ApprovalRequest.status=='PENDING',ApprovalRequest.created_at < threshold))).all()
     return [{'approval_id':a.id,'representative':{'id':u.id,'name':u.name},'campaign':{'id':c.id,'name':c.name},'prospect':dump(p) if p else None,'age_hours':int((datetime.utcnow()-a.created_at).total_seconds()/3600),'channel':a.payload.get('channel','email'),'message_preview':a.payload.get('message',a.payload.get('summary',''))[:200],'created_at':a.created_at,'status':'AGING'} for a,u,c,cp,p in rows]
 @router.post('/campaigns/{id}/prospects/discover')
-async def discover(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    c=await draft(id,db); found=[]
-    for item in await MockLeadDiscoveryProvider().discover({'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries}):
-        p=await db.scalar(select(Prospect).where(Prospect.email==item.email))
-        if not p: p=Prospect(**item.model_dump()); db.add(p); await db.flush()
-        found.append(p.id)
-    batch=ProspectBatch(campaign_id=id,mode='AUTO_DISCOVER',prospect_ids=found,created_by_id=identity[0].id); db.add(batch); audit(db,'PROSPECT_BATCH_DISCOVERED','campaign',id,{'batch_id':batch.id}); await db.commit(); return {'batch_id':batch.id,'prospects':[await fit(db,c,await db.get(Prospect,x)) for x in found]}
+async def discover(id:str,data:DiscoveryRequestIn=DiscoveryRequestIn(),db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await draft(id,db); icp={'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size}
+    run=AgentRun(campaign_id=id,agent_type='DISCOVERY',status='RUNNING',input_data={'requested_count':data.requested_count,'icp':icp,'tool':'APOLLO'}); db.add(run); await db.flush()
+    try:
+        result=await DiscoveryService().discover_for_campaign(id,icp,data.requested_count)
+    except DiscoveryProviderError as exc:
+        run.status='FAILED'; run.output_data={'error_code':exc.code,'error':exc.message,'tool':'APOLLO'}; await db.commit(); raise HTTPException(503,detail={'code':exc.code,'message':exc.message,'run_id':run.id})
+    found=[]; preview=[]
+    for candidate in result.candidates:
+        # Pydantic has already enforced score range/source enum; identity is still a backend decision.
+        if not candidate.source_id or not (candidate.first_name or candidate.person_name) or not candidate.title:
+            preview.append({'source_id':candidate.source_id,'valid':False,'reason':'Missing required candidate identity fields'}); continue
+        p=await db.scalar(select(Prospect).where(Prospect.email==candidate.email)) if candidate.email else None
+        duplicate=bool(p)
+        if not p:
+            first=candidate.first_name or candidate.person_name.split()[0]; last=candidate.last_name or ' '.join((candidate.person_name or '').split()[1:])
+            p=Prospect(first_name=first,last_name=last,email=candidate.email or f'{candidate.source_id}@apollo.invalid',title=candidate.title,linkedin_url=candidate.linkedin_url or '',industry=candidate.industry or '',employee_count=candidate.company_size or 0,website=candidate.company_domain or '',metadata_={'discovery_source':candidate.source,'source_id':candidate.source_id,'company_name':candidate.company_name or ''}); db.add(p); await db.flush()
+        assessment=await fit(db,c,p); conflict=any(x['blocking'] for x in assessment['conflicts'])
+        row={'prospect_id':p.id,'name':candidate.person_name or f'{p.first_name} {p.last_name}'.strip(),'title':candidate.title,'company':candidate.company_name,'fit_score':candidate.fit_score,'fit_reasons':candidate.fit_reasons,'matched_criteria':candidate.matched_criteria,'unmatched_criteria':candidate.unmatched_criteria,'confidence':candidate.confidence,'source':candidate.source,'source_id':candidate.source_id,'duplicate':duplicate,'conflict':conflict,'conflicts':assessment['conflicts'],'suppressed':assessment['suppressed']}
+        preview.append(row)
+        if not assessment['suppressed'] and not conflict: found.append(p.id)
+    batch=ProspectBatch(campaign_id=id,mode='DRONAHQ_APOLLO_DISCOVER',prospect_ids=found,created_by_id=identity[0].id); db.add(batch)
+    run.status='COMPLETED'; run.output_data={'tool':'APOLLO','dronahq_execution_id':result.execution_id,'candidate_count':len(result.candidates),'valid_preview_count':len(found),'search_summary':result.search_summary,'batch_id':batch.id}
+    audit(db,'PROSPECT_BATCH_DISCOVERED','campaign',id,{'batch_id':batch.id,'run_id':run.id,'tool':'APOLLO','candidate_count':len(result.candidates)}); await db.commit()
+    return {'run_id':run.id,'batch_id':batch.id,'status':'COMPLETED','dronahq_execution_id':result.execution_id,'total_found':result.total_found,'search_summary':result.search_summary,'prospects':preview}
+@router.get('/campaigns/{id}/discovery/{run_id}')
+async def discovery_run(id:str,run_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign(id,db); run=await db.get(AgentRun,run_id)
+    if not run or run.campaign_id!=id or run.agent_type!='DISCOVERY': raise HTTPException(404,'Discovery run not found')
+    data=run.output_data or {}
+    return {'run_id':run.id,'status':run.status,'candidate_count':data.get('candidate_count',0),'started_at':run.created_at,'completed_at':run.updated_at if run.status in ['COMPLETED','FAILED'] else None,'error':data.get('error'),'dronahq_execution_id':data.get('dronahq_execution_id'),'tool':data.get('tool','APOLLO')}
 @router.post('/campaigns/{id}/prospects/import')
 async def import_prospects(id:str,data:ProspectImportIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); ids=[]

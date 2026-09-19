@@ -16,6 +16,10 @@ class Settings:
     global_kill_switch: bool = os.getenv('GLOBAL_KILL_SWITCH', 'false').lower() == 'true'
     approval_aging_threshold_hours: int = int(os.getenv('APPROVAL_AGING_THRESHOLD_HOURS', '24'))
     llm_provider: str = os.getenv('LLM_PROVIDER', 'mock')
+    dronahq_base_url: str = os.getenv('DRONAHQ_BASE_URL', '')
+    dronahq_discovery_agent_id: str = os.getenv('DRONAHQ_DISCOVERY_AGENT_ID', '')
+    dronahq_api_key: str = os.getenv('DRONAHQ_API_KEY', '')
+    dronahq_discovery_invoke_path: str = os.getenv('DRONAHQ_DISCOVERY_INVOKE_PATH', '/api/agents/{agent_id}/invoke')
 
 @lru_cache
 def settings() -> Settings: return Settings()

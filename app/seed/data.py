@@ -17,7 +17,7 @@ async def seed(db):
     # Upgrade a pre-RBAC local demo database with deterministic work ownership.
     for i,c in enumerate(existing_campaigns):
       # Add the per-campaign controls introduced after the original demo seed.
-      for agent_type in ['ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']:
+      for agent_type in ['DISCOVERY','ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']:
         if not await db.scalar(select(CampaignAgent).where(CampaignAgent.campaign_id==c.id,CampaignAgent.agent_type==agent_type)):
           db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=not (i==1 and agent_type=='RESEARCH')))
       if not await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==c.id)):
@@ -39,7 +39,7 @@ async def seed(db):
   docs=[('Product overview','Our platform gives sales teams policy-controlled, multi-channel agent workflows.'),('Sales playbook','Use a specific observed signal, name the outcome, and ask for a small next step.'),('Objection handling','When prospects ask for later, acknowledge timing and schedule a respectful follow-up.'),('Email examples','Keep outreach concise, factual, and grounded in verified research.')]
   db.add_all([KnowledgeDocument(title=t,content=c,category='sales') for t,c in docs]); db.add_all([PromptVersion(agent_type=x,version='1.0.0',prompt_text='Demo structured prompt') for x in ['qualification','strategy','personalization','conversation']]);
   for i,c in enumerate(campaigns):
-    for agent_type in ['ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']:
+    for agent_type in ['DISCOVERY','ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']:
       db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=not (i==1 and agent_type=='RESEARCH')))
     for channel in c.active_channels: db.add(CampaignChannelSettings(campaign_id=c.id,channel=channel,enabled=True))
   await db.flush()

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, Field
 class CampaignIn(BaseModel):
     name: str; description: str=''; icp_config: dict=Field(default_factory=dict); target_geography: str=''; target_industries: list[str]=Field(default_factory=list); target_roles: list[str]=Field(default_factory=list); company_size: dict=Field(default_factory=dict); instructions: str=''; active_channels: list[str]=Field(default_factory=lambda:['email']); daily_outreach_limit: int=25; approval_required: bool=False
@@ -28,3 +29,9 @@ class PromptIn(BaseModel): agent_type: str; prompt_text: str; configuration: dic
 class ApprovalEditIn(BaseModel): content: str
 class ApprovalRejectIn(BaseModel): reason: str
 class BatchApprovalIn(BaseModel): approval_ids: list[str]
+class DiscoveryRequestIn(BaseModel): requested_count: int=Field(default=25,ge=1,le=100)
+class DiscoveryCandidate(BaseModel):
+    source: Literal['APOLLO']; source_id: str; person_name: str|None=None; first_name: str|None=None; last_name: str|None=None; title: str|None=None; email: str|None=None; linkedin_url: str|None=None; company_name: str|None=None; company_domain: str|None=None; company_size: int|None=None; industry: str|None=None
+    fit_score: float=Field(ge=0,le=100); fit_reasons: list[str]=Field(default_factory=list); matched_criteria: list[str]=Field(default_factory=list); unmatched_criteria: list[str]=Field(default_factory=list); confidence: Literal['HIGH','MEDIUM','LOW']
+class DiscoveryResult(BaseModel):
+    campaign_id: str; candidates: list[DiscoveryCandidate]=Field(default_factory=list); total_found: int=Field(ge=0); search_summary: str=''; execution_id: str|None=None

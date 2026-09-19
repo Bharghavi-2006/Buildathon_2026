@@ -43,3 +43,21 @@ All manager control endpoints require `X-User-Email: manager@demo.local`. Repres
 ## Manager campaign launch API
 
 The campaign creation vertical slice is available at `/api/manager`: dashboard, draft creation, identity/ICP, agents, deterministic prospect discovery/import/preview/selection, channels, prompts, launch check, activation, and lifecycle actions. Configure a draft, call `GET /api/manager/campaigns/{id}/launch-check`, then call `/activate` only when `ready` is true. All endpoints require the manager demo identity header.
+
+## DronaHQ Discovery Agent Setup
+
+Create and publish a DronaHQ agent named **SDR Lead Discovery Agent**. Add only the Apollo DronaHQ tool and connect its Apollo account. Configure the agent to accept `campaign_id`, `icp`, and `requested_count`, use Apollo to translate the ICP into search criteria, and return JSON matching `DiscoveryResult` in `app.schemas`.
+
+Use instructions structured as: **Role & Purpose** (discover candidates only), **Tools** (Apollo only), **Knowledge / Context** (the supplied ICP), **Rules & Guardrails** (never invent people, companies, titles, IDs, or Apollo results; do not contact prospects or mutate campaigns), **Output Format** (structured candidates), and **Edge Cases** (return an empty candidate list and uncertainty rather than guesses). Each candidate must retain `source: "APOLLO"`, its Apollo `source_id`, explainable fit criteria, and a `HIGH`, `MEDIUM`, or `LOW` confidence.
+
+Set these environment variables outside source control:
+
+```text
+DRONAHQ_BASE_URL=https://<your-tenant>
+DRONAHQ_DISCOVERY_AGENT_ID=<published-agent-id>
+DRONAHQ_API_KEY=<api-key>
+# Optional: use your tenant's published-agent API path.
+DRONAHQ_DISCOVERY_INVOKE_PATH=/api/agents/{agent_id}/invoke
+```
+
+The backend posts campaign ICP to that published-agent endpoint and expects a JSON object (or `data`/`result` wrapper) matching `DiscoveryResult`. DronaHQ remains the agentic Apollo execution layer; FastAPI validates candidates, records the `DISCOVERY` agent run, handles conflicts/suppression, and owns all database writes. With no DronaHQ configuration, development uses a contract-compatible mock provider only.

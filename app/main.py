@@ -106,7 +106,8 @@ async def execute(campaign_id,stage,db):
 @app.post('/campaigns/{id}/run')
 async def full_run(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return await execute(id,'outreach',db)
 @app.post('/campaigns/{id}/discover')
-async def discover(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return {'campaign_id':id,'status':'Mock discovery available; seed provides deterministic prospects'}
+async def discover(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    raise HTTPException(410,'Use /api/manager/campaigns/{campaign_id}/prospects/discover for DronaHQ Discovery Agent execution')
 @app.post('/campaigns/{id}/research')
 async def research(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return await execute(id,'research',db)
 @app.post('/campaigns/{id}/qualify')
