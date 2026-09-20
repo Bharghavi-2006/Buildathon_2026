@@ -174,5 +174,7 @@ export const campaignsApi = {
   activateCampaign: async (id: string): Promise<Campaign> => {
     return await apiClient.post<Campaign>(`/api/manager/campaigns/${id}/activate`);
   },
+  updateDemoMode: async (id: string, data: { demo_mode: boolean; demo_recipient_email?: string | null }): Promise<{ demo_mode: boolean; demo_recipient_email?: string | null }> => {
+    return await apiClient.patch(`/api/manager/campaigns/${id}/demo-mode`, data);
+  },
 };
-

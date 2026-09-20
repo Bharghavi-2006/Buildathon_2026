@@ -15,6 +15,10 @@ async def init_db():
         # normal migration process.
         if engine.dialect.name == 'sqlite':
             await _apply_sqlite_additive_schema(conn)
+        # A demo deployment must not leave pre-existing campaigns capable of
+        # non-demo delivery merely because they were created before this flag.
+        if settings().demo_mode:
+            await conn.execute(text('UPDATE campaigns SET demo_mode = 1'))
 
 
 async def _apply_sqlite_additive_schema(conn):
@@ -29,6 +33,13 @@ async def _apply_sqlite_additive_schema(conn):
             'assigned_lead_limit': 'INTEGER',
             'working_hours': 'JSON',
             'routing_rule': 'JSON',
+        },
+        'campaigns': {
+            'demo_mode': 'BOOLEAN NOT NULL DEFAULT 1',
+            'demo_recipient_email': 'VARCHAR',
+        },
+        'delivery_records': {
+            'conversation_id': 'VARCHAR',
         },
     }
     for table, columns in additions.items():

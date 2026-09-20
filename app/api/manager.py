@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
+import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import require_manager
 from app.db.session import get_session
@@ -12,6 +14,7 @@ from app.policy.engine import PolicyEngine
 from app.fitment.engine import ICPFitmentEngine
 from app.matching.engine import RepMatchEngine
 from app.core.config import settings
+from app.dronahq.registry import agent_registry, run_agent
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
 def out(x): return {a.key:getattr(x,a.key) for a in __import__('sqlalchemy').inspect(x).mapper.column_attrs}
@@ -58,12 +61,35 @@ async def alerts(db:AsyncSession=Depends(get_session),identity=Depends(require_m
     return res
 @router.post('/campaigns')
 async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    c=Campaign(name=data.name,description=data.description,status='DRAFT'); db.add(c); await db.flush(); db.add(CampaignSetup(campaign_id=c.id,owner_id=identity[0].id))
+    c=Campaign(name=data.name,description=data.description,status='DRAFT',demo_mode=True); db.add(c); await db.flush(); db.add(CampaignSetup(campaign_id=c.id,owner_id=identity[0].id))
     for agent_type in ['DISCOVERY','ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']: db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=False))
     audit(db,'CAMPAIGN_CREATED','campaign',c.id); await db.commit(); return out(c)
 @router.get('/campaigns/{id}/identity')
 async def get_identity(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await campaign(id,db); s=await setup_for(c,db); return {'id':c.id,'name':c.name,'description':c.description,'status':c.status,'owner_id':s.owner_id}
+@router.get('/campaigns/{id}/demo-mode')
+async def get_demo_mode(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db); return {'demo_mode':c.demo_mode,'demo_recipient_email':c.demo_recipient_email}
+@router.patch('/campaigns/{id}/demo-mode')
+async def save_demo_mode(id:str,data:DemoModeIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db)
+    recipient=(data.demo_recipient_email or '').strip().lower() or None
+    if data.demo_mode and (not recipient or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', recipient)):
+        raise HTTPException(422,'Demo mode requires a valid demo_recipient_email')
+    c.demo_mode=data.demo_mode; c.demo_recipient_email=recipient
+    audit(db,'CAMPAIGN_DEMO_MODE_UPDATED','campaign',id,{'actor':identity[0].id,'demo_mode':c.demo_mode,'demo_recipient_configured':bool(recipient)})
+    await db.commit(); return {'demo_mode':c.demo_mode,'demo_recipient_email':c.demo_recipient_email}
+@router.post('/agents/{agent}/connection-test')
+async def agent_connection_test(agent:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Safe, manager-only connectivity check; it never creates campaign data."""
+    if agent not in agent_registry(): raise HTTPException(404,'Unknown DronaHQ agent')
+    started=datetime.utcnow()
+    try:
+        response=await run_agent(agent,{'test':True,'purpose':'connectivity_check','do_not_send_outreach':True})
+    except DiscoveryProviderError as exc:
+        status=503 if exc.code != 'AGENT_NOT_CONFIGURED' else 409
+        raise HTTPException(status,detail={'code':exc.code,'message':exc.message}) from exc
+    return {'agent':agent,'status':'CONNECTED','response':'VALID' if isinstance(response,dict) else 'INVALID','latency_ms':int((datetime.utcnow()-started).total_seconds()*1000)}
 @router.patch('/campaigns/{id}/identity')
 async def identity_config(id:str,data:IdentityIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await draft(id,db)
@@ -121,11 +147,11 @@ async def aging_approvals(db:AsyncSession=Depends(get_session),identity=Depends(
 @router.post('/campaigns/{id}/prospects/discover')
 async def discover(id:str,data:DiscoveryRequestIn=DiscoveryRequestIn(),db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await draft(id,db); icp={'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size}
-    run=AgentRun(campaign_id=id,agent_type='DISCOVERY',status='RUNNING',input_data={'requested_count':data.requested_count,'icp':icp,'tool':'APOLLO'}); db.add(run); await db.flush()
+    run=AgentRun(campaign_id=id,agent_type='DISCOVERY',status='RUNNING',input_data={'requested_count':data.requested_count,'icp':icp,'tool':'DISCOVERY_PROVIDER'}); db.add(run); await db.flush()
     try:
         result=await DiscoveryService().discover_for_campaign(id,icp,data.requested_count)
     except DiscoveryProviderError as exc:
-        run.status='FAILED'; run.output_data={'error_code':exc.code,'error':exc.message,'tool':'APOLLO'}; await db.commit(); raise HTTPException(503,detail={'code':exc.code,'message':exc.message,'run_id':run.id})
+        run.status='FAILED'; run.output_data={'error_code':exc.code,'error':exc.message,'diagnostic':exc.diagnostic,'tool':'DISCOVERY_PROVIDER'}; await db.commit(); raise HTTPException(503,detail={'code':exc.code,'message':exc.message,'diagnostic':exc.diagnostic,'run_id':run.id})
     found=[]; preview=[]
     for candidate in result.candidates:
         # Pydantic has already enforced score range/source enum; identity is still a backend decision.
@@ -135,14 +161,15 @@ async def discover(id:str,data:DiscoveryRequestIn=DiscoveryRequestIn(),db:AsyncS
         duplicate=bool(p)
         if not p:
             first=candidate.first_name or candidate.person_name.split()[0]; last=candidate.last_name or ' '.join((candidate.person_name or '').split()[1:])
-            p=Prospect(first_name=first,last_name=last,email=candidate.email or f'{candidate.source_id}@apollo.invalid',title=candidate.title,linkedin_url=candidate.linkedin_url or '',industry=candidate.industry or '',employee_count=candidate.company_size or 0,website=candidate.company_domain or '',metadata_={'discovery_source':candidate.source,'source_id':candidate.source_id,'company_name':candidate.company_name or ''}); db.add(p); await db.flush()
+            p=Prospect(first_name=first,last_name=last,email=candidate.email or f'{candidate.source_id}@{candidate.source.lower()}.invalid',title=candidate.title,linkedin_url=candidate.linkedin_url or '',industry=candidate.industry or '',employee_count=candidate.company_size or 0,website=candidate.company_domain or '',metadata_={'discovery_source':candidate.source,'source_id':candidate.source_id,'source_url':candidate.linkedin_url or '','company_name':candidate.company_name or ''}); db.add(p); await db.flush()
         assessment=await fit(db,c,p); conflict=any(x['blocking'] for x in assessment['conflicts'])
         row={'prospect_id':p.id,'name':candidate.person_name or f'{p.first_name} {p.last_name}'.strip(),'title':candidate.title,'company':candidate.company_name,'fit_score':candidate.fit_score,'fit_reasons':candidate.fit_reasons,'matched_criteria':candidate.matched_criteria,'unmatched_criteria':candidate.unmatched_criteria,'confidence':candidate.confidence,'source':candidate.source,'source_id':candidate.source_id,'duplicate':duplicate,'conflict':conflict,'conflicts':assessment['conflicts'],'suppressed':assessment['suppressed']}
         preview.append(row)
         if not assessment['suppressed'] and not conflict: found.append(p.id)
-    batch=ProspectBatch(campaign_id=id,mode='DRONAHQ_APOLLO_DISCOVER',prospect_ids=found,created_by_id=identity[0].id); db.add(batch)
-    run.status='COMPLETED'; run.output_data={'tool':'APOLLO','dronahq_execution_id':result.execution_id,'candidate_count':len(result.candidates),'valid_preview_count':len(found),'search_summary':result.search_summary,'batch_id':batch.id}
-    audit(db,'PROSPECT_BATCH_DISCOVERED','campaign',id,{'batch_id':batch.id,'run_id':run.id,'tool':'APOLLO','candidate_count':len(result.candidates)}); await db.commit()
+    provider=result.candidates[0].source if result.candidates else 'DEMO'
+    batch=ProspectBatch(campaign_id=id,mode=f'{provider}_DISCOVER',prospect_ids=found,created_by_id=identity[0].id); db.add(batch)
+    run.status='COMPLETED'; run.output_data={'tool':provider,'dronahq_execution_id':result.execution_id,'candidate_count':len(result.candidates),'valid_preview_count':len(found),'search_summary':result.search_summary,'batch_id':batch.id}
+    audit(db,'PROSPECT_BATCH_DISCOVERED','campaign',id,{'batch_id':batch.id,'run_id':run.id,'tool':provider,'candidate_count':len(result.candidates)}); await db.commit()
     return {'run_id':run.id,'batch_id':batch.id,'status':'COMPLETED','dronahq_execution_id':result.execution_id,'total_found':result.total_found,'search_summary':result.search_summary,'prospects':preview}
 @router.get('/campaigns/{id}/discovery/{run_id}')
 async def discovery_run(id:str,run_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
@@ -204,6 +231,42 @@ async def fitment_prospect(id:str,prospect_id:str,data:FitmentRequestIn=FitmentR
     cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id)); cp.qualification_status=result['overall_fit_status']; cp.qualification_score=result['overall_fit_score']; cp.qualification_reason='; '.join(result['key_fit_signals']+result['key_risk_factors']); cp.current_stage=result['recommended_next_stage']
     run.status='COMPLETED'; run.output_data={'engine_version':'icp-fitment-v1','research_id':research.id,'fitment_id':record.id,'overall_fit_score':result['overall_fit_score'],'recommended_next_stage':result['recommended_next_stage'],'execution_type':'DETERMINISTIC'}
     audit(db,'ICP_FITMENT_COMPLETED','prospect_fitment',record.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id,'run_id':run.id,'engine_version':'icp-fitment-v1'}); await db.commit(); return out(record)
+@router.post('/campaigns/{id}/prospects/{prospect_id}/pipeline/{stage}')
+async def run_pipeline_agent(id:str,prospect_id:str,stage:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Run one external proposal stage; delivery remains a separate approval action."""
+    stages={'strategy':'outreach_strategy','personalization':'personalization','conversation':'conversation','followup':'followup'}
+    agent=stages.get(stage)
+    if not agent: raise HTTPException(404,'Unknown pipeline stage')
+    c=await campaign(id,db); cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id))
+    p=await db.get(Prospect,prospect_id)
+    if not cp or not p: raise HTTPException(404,'Campaign prospect not found')
+    research=await db.scalar(select(ProspectResearch).where(ProspectResearch.campaign_id==id,ProspectResearch.prospect_id==prospect_id).order_by(ProspectResearch.updated_at.desc()))
+    fitment=await db.scalar(select(ProspectFitment).where(ProspectFitment.campaign_id==id,ProspectFitment.prospect_id==prospect_id).order_by(ProspectFitment.updated_at.desc()))
+    if stage in {'strategy','personalization'} and not fitment: raise HTTPException(409,'Completed ICP fitment is required')
+    policy=await PolicyEngine().check_agent_execution(db,c,agent.upper())
+    if not policy.allowed: raise HTTPException(409,detail={'code':policy.rule,'message':policy.reason})
+    previous=(await db.scalars(select(OutreachEvent).where(OutreachEvent.campaign_id==id,OutreachEvent.prospect_id==prospect_id))).all()
+    conversation=await db.scalar(select(Conversation).where(Conversation.campaign_id==id,Conversation.prospect_id==prospect_id))
+    messages=(await db.scalars(select(Message).where(Message.conversation_id==conversation.id).order_by(Message.created_at.asc()))).all() if conversation else []
+    payload=jsonable_encoder({'campaign':out(c),'prospect':out(p),'research':out(research) if research else None,'fitment':out(fitment) if fitment else None,'previous_outreach':[out(x) for x in previous],'enabled_channels':c.active_channels,'policy':policy.model_dump(),'conversation_history':[out(x) for x in messages]})
+    run=AgentRun(campaign_id=id,prospect_id=prospect_id,agent_type=agent.upper(),status='RUNNING',input_data=payload); db.add(run); await db.flush()
+    try:
+        raw=await run_agent(agent,payload)
+    except DiscoveryProviderError as exc:
+        run.status='FAILED'; run.output_data={'code':exc.code,'error':exc.message}; cp.current_stage=f'{agent.upper()}_FAILED'; await db.commit()
+        raise HTTPException(503,detail={'code':exc.code,'message':exc.message,'run_id':run.id}) from exc
+    result=raw.get('result',raw.get('data',raw)) if isinstance(raw,dict) else {}
+    run.status='COMPLETED'; run.output_data=result
+    if stage=='strategy': cp.current_stage='STRATEGY_READY'
+    elif stage=='personalization':
+        body=result.get('draft',result.get('body','')) if isinstance(result,dict) else ''
+        if not body: run.status='FAILED'; cp.current_stage='PERSONALIZATION_FAILED'; await db.commit(); raise HTTPException(502,'Personalization agent returned no draft')
+        assignment=await db.scalar(select(LeadAssignment).where(LeadAssignment.campaign_prospect_id==cp.id,LeadAssignment.status=='ASSIGNED'))
+        db.add(ApprovalRequest(campaign_id=id,campaign_prospect_id=cp.id,representative_id=assignment.representative_id if assignment else None,request_type='OUTREACH',payload={'channel':result.get('channel','email'),'subject':result.get('subject',''),'message':body,'agent':'PERSONALIZATION','agent_run_id':run.id}))
+        cp.current_stage='PENDING_APPROVAL'
+    elif stage=='conversation': cp.current_stage='CONVERSATION_ANALYZED'
+    else: cp.current_stage='FOLLOW_UP_RECOMMENDED'
+    await db.commit(); return {'run_id':run.id,'stage':cp.current_stage,'result':result}
 @router.post('/campaigns/{id}/prospects/import')
 async def import_prospects(id:str,data:ProspectImportIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); ids=[]

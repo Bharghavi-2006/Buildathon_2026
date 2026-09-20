@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.discovery.service import DiscoveryProviderError
-from app.research.service import DronaHQResearchProvider, MockResearchProvider
+from app.research.service import DronaHQResearchProvider, MockResearchProvider, FallbackResearchProvider
 from app.schemas import ResearchResult
 
 
@@ -33,3 +33,10 @@ async def test_malformed_json_encoded_array_is_rejected():
     with pytest.raises(DiscoveryProviderError) as error:
         await DronaHQResearchProvider(Client()).research('c','Campaign',{}, {'source_id':'source-1'})
     assert error.value.code=='RESEARCH_MALFORMED_RESPONSE'
+
+@pytest.mark.asyncio
+async def test_dronahq_research_failure_uses_scraper_fallback_provider():
+    class BrokenProvider:
+        async def research(self, *args): raise DiscoveryProviderError('RESEARCH_TIMEOUT', 'DronaHQ timed out.')
+    result=await FallbackResearchProvider(BrokenProvider(), MockResearchProvider()).research('c', 'Campaign', {}, {'title':'CTO'})
+    assert result.candidate_status == 'partially_verified'

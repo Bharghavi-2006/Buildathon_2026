@@ -38,6 +38,8 @@ export interface Campaign {
   active_channels: string[];
   daily_outreach_limit: number;
   approval_required: boolean;
+  demo_mode: boolean;
+  demo_recipient_email?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -435,5 +437,4 @@ export interface CreateRepresentativePayload {
   timezone: string;
   working_hours?: Record<string, any>;
 }
-
 

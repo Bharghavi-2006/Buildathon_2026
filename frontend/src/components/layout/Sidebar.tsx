@@ -69,7 +69,7 @@ export const Sidebar: React.FC = () => {
           ) : (
             <>
               <NavLink
-                to="/rep/queue"
+              to="/rep"
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                     isActive
@@ -121,7 +121,7 @@ export const Sidebar: React.FC = () => {
         </div>
         <div className="space-y-1">
           <NavLink
-            to="/settings"
+            to={isManager ? '/settings' : '/rep'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                 isActive

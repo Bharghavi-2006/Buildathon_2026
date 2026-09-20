@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, Field
 class CampaignIn(BaseModel):
-    name: str; description: str=''; icp_config: dict=Field(default_factory=dict); target_geography: str=''; target_industries: list[str]=Field(default_factory=list); target_roles: list[str]=Field(default_factory=list); company_size: dict=Field(default_factory=dict); instructions: str=''; active_channels: list[str]=Field(default_factory=lambda:['email']); daily_outreach_limit: int=25; approval_required: bool=False
+    name: str; description: str=''; icp_config: dict=Field(default_factory=dict); target_geography: str=''; target_industries: list[str]=Field(default_factory=list); target_roles: list[str]=Field(default_factory=list); company_size: dict=Field(default_factory=dict); instructions: str=''; active_channels: list[str]=Field(default_factory=lambda:['email']); daily_outreach_limit: int=25; approval_required: bool=True; demo_mode: bool=True; demo_recipient_email: str|None=None
 class ProspectIn(BaseModel):
     first_name: str; last_name: str=''; email: str; title: str=''; location: str=''; industry: str=''; employee_count: int=0; website: str=''; phone: str=''; linkedin_url: str=''
 class InboundMessage(BaseModel):
@@ -38,7 +38,7 @@ class ApprovalRejectIn(BaseModel): reason: str
 class BatchApprovalIn(BaseModel): approval_ids: list[str]
 class DiscoveryRequestIn(BaseModel): requested_count: int=Field(default=25,ge=1,le=100)
 class DiscoveryCandidate(BaseModel):
-    source: Literal['APOLLO']; source_id: str; person_name: str|None=None; first_name: str|None=None; last_name: str|None=None; title: str|None=None; email: str|None=None; linkedin_url: str|None=None; company_name: str|None=None; company_domain: str|None=None; company_size: int|None=None; industry: str|None=None
+    source: Literal['APOLLO','WEB_SCRAPER']; source_id: str; person_name: str|None=None; first_name: str|None=None; last_name: str|None=None; title: str|None=None; email: str|None=None; linkedin_url: str|None=None; company_name: str|None=None; company_domain: str|None=None; company_size: int|None=None; industry: str|None=None
     fit_score: float=Field(ge=0,le=100); fit_reasons: list[str]=Field(default_factory=list); matched_criteria: list[str]=Field(default_factory=list); unmatched_criteria: list[str]=Field(default_factory=list); confidence: Literal['HIGH','MEDIUM','LOW']
 class DiscoveryResult(BaseModel):
     campaign_id: str; candidates: list[DiscoveryCandidate]=Field(default_factory=list); total_found: int=Field(ge=0); search_summary: str=''; execution_id: str|None=None
@@ -47,3 +47,7 @@ class IcpEvidence(BaseModel): criterion: str; status: Literal['MATCHED','UNMATCH
 class ResearchResult(BaseModel):
     campaign_id: str; candidate_status: Literal['verified','partially_verified','unverified']; research_summary: str; person_research: dict=Field(default_factory=dict); company_research: dict=Field(default_factory=dict); icp_evidence: list[IcpEvidence]=Field(default_factory=list); business_context: list[str]=Field(default_factory=list); personalization_signals: list[str]=Field(default_factory=list); sources: list[str]=Field(default_factory=list); uncertainties: list[str]=Field(default_factory=list); execution_id: str|None=None
 class FitmentRequestIn(BaseModel): force_refresh: bool=False
+class DemoModeIn(BaseModel):
+    demo_mode: bool=True
+    demo_recipient_email: str|None=None
+class DemoReplyIn(BaseModel): message: str

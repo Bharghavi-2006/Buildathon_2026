@@ -11,7 +11,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-The default configuration uses a local SQLite database (`sdr.db`) and mock/demo providers. It automatically seeds three live campaigns and synthetic prospects. API docs are at `http://localhost:8000/docs`.
+The default configuration uses a local SQLite database (`sdr.db`) and demo providers. Every agent stage runs locally in demo mode, and outgoing delivery remains guarded by the per-campaign demo recipient. It automatically seeds three live campaigns and synthetic prospects. API docs are at `http://localhost:8000/docs`.
 
 For a direct non-container deployment, install the same requirements, set `DATABASE_URL` to a managed PostgreSQL `postgresql+asyncpg://...` URL, and run:
 
@@ -76,7 +76,7 @@ DRONAHQ_RESEARCH_WEBHOOK_API_KEY=<webhook-key>
 DRONAHQ_RESEARCH_AGENT_ID=<research-agent-id>
 ```
 
-When those variables are unset, the backend uses deterministic `MockResearchProvider` data for local development and tests. Failed provider calls and malformed responses create a failed `RESEARCH` agent run; no credentials or authorization headers are logged.
+When demo mode is enabled (the default), the backend uses deterministic local providers and never calls DronaHQ. With `DEMO_MODE=false`, Discovery and Research call DronaHQ first. If an agent call, timeout, or response validation fails, they fall back to a conservative public DuckDuckGo HTML search scraper. Scraper leads are marked `WEB_SCRAPER`/low-confidence and research results explicitly remain unverified. If both providers fail, the original DronaHQ failure is returned and the run is marked failed; no credentials or authorization headers are logged.
 
 ## Deterministic ICP Fitment
 

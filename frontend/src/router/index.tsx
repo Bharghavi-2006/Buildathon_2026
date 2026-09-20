@@ -6,6 +6,8 @@ import { CampaignDetail } from '../pages/manager/CampaignDetail';
 import { ProspectDetail } from '../pages/manager/ProspectDetail';
 import { NewCampaign } from '../pages/manager/NewCampaign';
 import { SdrsRoster } from '../pages/manager/SdrsRoster';
+import { RepresentativeWorkspace } from '../pages/representative/Workspace';
+import { Home } from '../pages/Home';
 
 export const router = createBrowserRouter([
   {
@@ -14,7 +16,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Dashboard />,
+        element: <Home />,
       },
       {
         path: 'campaigns/:id',
@@ -62,15 +64,7 @@ export const router = createBrowserRouter([
         path: 'manager/campaigns/new',
         element: <NewCampaign />,
       },
-      {
-        path: 'rep/*',
-        element: (
-          <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-400">
-            <h2 className="text-xl font-bold text-white mb-2">Representative Workspace</h2>
-            <p className="text-sm">Switch identity to manager@demo.local to view the active P0 slice or continue to rep features.</p>
-          </div>
-        ),
-      },
+      { path: 'rep/*', element: <RepresentativeWorkspace /> },
       {
         path: '*',
         element: <Navigate to="/" replace />,

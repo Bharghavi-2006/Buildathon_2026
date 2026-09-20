@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"dronahq_mcp": {
+			"type": "http",
+			"url": "https://studio.dronahq.com/api/vibe/mcp/dronahq_mcp-82876b93-b9b5-48ac-a31b-2b010db21f26_1789900889",
+			"headers": {
+				"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXJ2ZXJfaWQiOiJkcm9uYWhxX21jcC04Mjg3NmI5My1iOWI1LTQ4YWMtYTMxYi0yYjAxMGRiMjFmMjZfMTc4OTkwMDg4OSIsImNoYW5uZWxfaWQiOjMxODIzLCJ1c2VyX2VtYWlsIjoiY2gyNWIxMDFAc21haWwuaWl0bS5hYy5pbiIsImp0aSI6ImFjNGZjZmY4MTBlOTRjZTY4NzIwZDcxNmU5ZGVkYWZiIiwiaWF0IjoiMTc4OTkwMDg4OSIsImlzcyI6Imh0dHA6Ly9kcm9uYWhxLmNvbSJ9.X9aT6GyDpy-oYtzz6Y6b9BaZAompAIcKt-p6YU9O6QI"
+			}
+		}
+	},
+	"inputs": []
+}
