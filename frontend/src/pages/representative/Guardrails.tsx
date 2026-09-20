@@ -46,7 +46,7 @@ export const RepresentativeGuardrails: React.FC = () => {
     </div>
 
     <div className="space-y-4">
-      {data.campaigns.map((card: any) => (
+      {(data.campaigns || []).map((card: any) => (
         <div key={card.campaign.id} className="rounded-xl border border-purple-500/15 bg-[#0d0f22] p-4 space-y-3">
           <div className="flex flex-wrap justify-between items-start gap-2">
             <div>
@@ -107,7 +107,7 @@ export const RepresentativeGuardrails: React.FC = () => {
           </div>
         </div>
       ))}
-      {!data.campaigns.length && <p className="text-slate-400">No active campaign assignments.</p>}
+      {!(data.campaigns || []).length && <p className="text-slate-400">No active campaign assignments.</p>}
     </div>
   </div>;
 };

@@ -26,6 +26,19 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
+// A misconfigured API base URL (or a backend that's unreachable) can still resolve to a
+// 200 response instead of a network error -- e.g. the request lands on this SPA's own
+// static host, which serves index.html for every path. Axios then hands back that HTML
+// as a raw string instead of parsed JSON. Every caller in this app expects an object/array,
+// so treat any non-JSON 2xx response as a failed request here, once, instead of letting it
+// crash wherever the page first tries to read a property off it.
+axiosInstance.interceptors.response.use((response) => {
+  if (typeof response.data === 'string') {
+    return Promise.reject(new Error('Received an unexpected non-JSON response from the API. Check that VITE_API_BASE_URL points to the backend.'));
+  }
+  return response;
+});
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
