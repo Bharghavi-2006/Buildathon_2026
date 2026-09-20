@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useMemo, useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Loader2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { AlertTriangle, Loader2, SlidersHorizontal, Sparkles, X, Check } from 'lucide-react';
 import { representativesApi } from '../../api/representatives';
 import { campaignsApi } from '../../api/campaigns';
 import { controlApi } from '../../api/control';
@@ -12,8 +12,8 @@ import { RepresentativeItem } from '../../types';
 // Deterministic per-rep pseudo-metrics: this operations view (turnaround, response
 // rate, meetings booked) has no backend source yet, so we derive stable-looking
 // numbers from the rep's own id instead of Math.random() so the page doesn't
-// reshuffle on every refetch. Capacity and pending/aging counts below are real,
-// pulled straight from /monitoring/representatives.
+// reshuffle on every refetch. Capacity, pending/aging counts, and active-agent
+// types below are real, pulled straight from /monitoring/representatives.
 function seededFraction(seed: string, salt: number): number {
   let hash = salt;
   for (let i = 0; i < seed.length; i++) {
@@ -22,6 +22,8 @@ function seededFraction(seed: string, salt: number): number {
   return (hash % 1000) / 1000;
 }
 
+type RepStatus = 'CRITICAL_OVERDUE' | 'WARN_LOAD' | 'STANDBY' | 'ACTIVE';
+
 interface RepRow {
   rep: RepresentativeItem;
   roleLabel: string;
@@ -29,10 +31,10 @@ interface RepRow {
   responseRate: number;
   meetingsBooked: number;
   capacityPct: number;
-  status: 'AT_RISK' | 'WARNING' | 'HEALTHY';
+  status: RepStatus;
 }
 
-function buildRepRow(rep: RepresentativeItem): RepRow {
+function buildRepRow(rep: RepresentativeItem, capacityThresholdPct: number): RepRow {
   const id = rep.user.id;
   const capacityPct = rep.profile.max_active_leads > 0
     ? Math.round((rep.active_leads / rep.profile.max_active_leads) * 100)
@@ -44,35 +46,44 @@ function buildRepRow(rep: RepresentativeItem): RepRow {
   const agingApprovals = rep.aging_approvals || 0;
   const pendingApprovals = rep.pending_approvals || 0;
 
-  let status: RepRow['status'] = 'HEALTHY';
-  if (agingApprovals > 0 || capacityPct >= 90) status = 'AT_RISK';
-  else if (pendingApprovals >= 3 || capacityPct >= 60 || turnaroundHours > 5) status = 'WARNING';
+  let status: RepStatus;
+  if (agingApprovals > 0) status = 'CRITICAL_OVERDUE';
+  else if (rep.active_leads === 0 && pendingApprovals === 0) status = 'STANDBY';
+  else if (capacityPct >= capacityThresholdPct || pendingApprovals >= 3) status = 'WARN_LOAD';
+  else status = 'ACTIVE';
 
   return { rep, roleLabel, turnaroundHours, responseRate, meetingsBooked, capacityPct, status };
 }
 
-const STATUS_LABEL: Record<RepRow['status'], string> = {
-  AT_RISK: 'At risk',
-  WARNING: 'Warning',
-  HEALTHY: 'Healthy',
+const STATUS_LABEL: Record<RepStatus, string> = {
+  CRITICAL_OVERDUE: 'Critical Overdue',
+  WARN_LOAD: 'Warn (Load)',
+  STANDBY: 'Standby',
+  ACTIVE: 'Active',
 };
 
-const STATUS_DOT: Record<RepRow['status'], string> = {
-  AT_RISK: 'bg-rose-400',
-  WARNING: 'bg-amber-400',
-  HEALTHY: 'bg-emerald-400',
+const STATUS_DOT: Record<RepStatus, string> = {
+  CRITICAL_OVERDUE: 'bg-rose-400',
+  WARN_LOAD: 'bg-amber-400',
+  STANDBY: 'bg-slate-400',
+  ACTIVE: 'bg-emerald-400',
 };
 
-const STATUS_TEXT: Record<RepRow['status'], string> = {
-  AT_RISK: 'text-rose-400',
-  WARNING: 'text-amber-400',
-  HEALTHY: 'text-emerald-400',
+const STATUS_TEXT: Record<RepStatus, string> = {
+  CRITICAL_OVERDUE: 'text-rose-400',
+  WARN_LOAD: 'text-amber-400',
+  STANDBY: 'text-slate-400',
+  ACTIVE: 'text-emerald-400',
 };
 
 const barColor = (pct: number) => (pct >= 85 ? 'bg-rose-500' : pct >= 60 ? 'bg-amber-500' : 'bg-emerald-500');
 
 export const Monitoring: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [highlightedRepId, setHighlightedRepId] = useState<string | null>(null);
+  const [showAdjustLimits, setShowAdjustLimits] = useState(false);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const { data: monitoringReps, isLoading, error } = useQuery({
     queryKey: ['monitoring-representatives'],
@@ -92,7 +103,13 @@ export const Monitoring: React.FC = () => {
     refetchInterval: 15000,
   });
 
-  const rows = useMemo(() => (monitoringReps || []).map(buildRepRow), [monitoringReps]);
+  const { data: thresholds } = useQuery({
+    queryKey: ['notification-thresholds'],
+    queryFn: campaignsApi.getNotificationThresholds,
+  });
+  const capacityThresholdPct = thresholds?.capacity_alert_threshold_pct ?? 90;
+
+  const rows = useMemo(() => (monitoringReps || []).map((r) => buildRepRow(r, capacityThresholdPct)), [monitoringReps, capacityThresholdPct]);
 
   const aggregates = useMemo(() => {
     if (!rows.length) {
@@ -101,9 +118,19 @@ export const Monitoring: React.FC = () => {
     const avgTurnaround = rows.reduce((sum, r) => sum + r.turnaroundHours, 0) / rows.length;
     const avgResponseRate = rows.reduce((sum, r) => sum + r.responseRate, 0) / rows.length;
     const totalMeetings = rows.reduce((sum, r) => sum + r.meetingsBooked, 0);
-    const criticalCount = rows.filter((r) => r.status === 'AT_RISK').length;
+    const criticalCount = rows.filter((r) => r.status === 'CRITICAL_OVERDUE').length;
     return { avgTurnaround, avgResponseRate, totalMeetings, criticalCount };
   }, [rows]);
+
+  const jumpToRep = (repId?: string) => {
+    if (!repId) { navigate('/'); return; }
+    const el = rowRefs.current[repId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedRepId(repId);
+      setTimeout(() => setHighlightedRepId((cur) => (cur === repId ? null : cur)), 3000);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -126,7 +153,7 @@ export const Monitoring: React.FC = () => {
   return (
     <div className="space-y-6">
       {alerts && alerts.length > 0 && (
-        <AlertBanner message={alerts[0].message} actionLabel="Review Now" onAction={() => navigate('/')} />
+        <AlertBanner message={alerts[0].message} actionLabel="Review Now" onAction={() => jumpToRep(alerts[0].representative_id)} />
       )}
 
       <div className="flex items-start justify-between flex-wrap gap-4">
@@ -136,7 +163,7 @@ export const Monitoring: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/manager/sdrs')}
+            onClick={() => setShowAdjustLimits(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#12152d] border border-purple-500/20 hover:border-purple-500/40 text-slate-200 text-xs font-semibold transition-all"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -205,8 +232,9 @@ export const Monitoring: React.FC = () => {
               {rows.map(({ rep, roleLabel, turnaroundHours, responseRate, meetingsBooked, capacityPct, status }) => (
                 <tr
                   key={rep.user.id}
+                  ref={(el) => { rowRefs.current[rep.user.id] = el; }}
                   onClick={() => navigate(`/manager/sdrs?rep=${rep.user.id}`)}
-                  className="hover:bg-[#121633] transition-colors cursor-pointer group"
+                  className={`hover:bg-[#121633] transition-colors cursor-pointer group ${highlightedRepId === rep.user.id ? 'bg-purple-900/40 ring-1 ring-inset ring-purple-500/50' : ''}`}
                 >
                   <td className="py-4 px-5">
                     <div className="flex items-center gap-3">
@@ -264,6 +292,66 @@ export const Monitoring: React.FC = () => {
       <p className="text-[11px] text-slate-500 px-1">
         Capacity and approval load are live. Turnaround, response rate, and meetings booked are illustrative pending a dedicated analytics pipeline.
       </p>
+
+      {showAdjustLimits && (
+        <AdjustLimitsModal reps={monitoringReps || []} onClose={() => setShowAdjustLimits(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: ['monitoring-representatives'] })} />
+      )}
+    </div>
+  );
+};
+
+const AdjustLimitsModal: React.FC<{ reps: RepresentativeItem[]; onClose: () => void; onSaved: () => void }> = ({ reps, onClose, onSaved }) => {
+  const [drafts, setDrafts] = useState<Record<string, number>>({});
+  const mutation = useMutation({
+    mutationFn: async ({ id, max_active_leads }: { id: string; max_active_leads: number }) => {
+      return await representativesApi.updateRepresentative(id, { max_active_leads });
+    },
+    onSuccess: (_, { id }) => {
+      setDrafts((prev) => { const next = { ...prev }; delete next[id]; return next; });
+      onSaved();
+    },
+    onError: (err: any) => alert(err.message || 'Failed to update capacity'),
+  });
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-[#0a0c1c] border border-purple-500/20 rounded-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-white">Adjust Rep Limits</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="space-y-2">
+          {reps.map((rep) => {
+            const draft = drafts[rep.user.id];
+            return (
+              <div key={rep.user.id} className="flex items-center justify-between gap-3 bg-[#0d0f22] border border-purple-500/10 rounded-xl px-4 py-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">{rep.user.name}</div>
+                  <div className="text-xs text-slate-400">{rep.active_leads} / {rep.profile.max_active_leads} leads assigned</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={draft ?? rep.profile.max_active_leads}
+                    onChange={(e) => setDrafts((prev) => ({ ...prev, [rep.user.id]: Number(e.target.value) }))}
+                    className="w-20 px-2 py-1.5 bg-[#070811] border border-purple-500/30 rounded-lg text-sm text-white text-right"
+                  />
+                  <button
+                    disabled={draft === undefined || draft === rep.profile.max_active_leads || mutation.isPending}
+                    onClick={() => mutation.mutate({ id: rep.user.id, max_active_leads: draft! })}
+                    className="p-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-30 text-white"
+                    title="Save"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {!reps.length && <p className="text-sm text-slate-400">No representatives to adjust.</p>}
+        </div>
+      </div>
     </div>
   );
 };

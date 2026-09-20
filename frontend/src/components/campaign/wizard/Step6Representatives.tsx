@@ -35,6 +35,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
   const [routingStrategy, setRoutingStrategy] = useState<'round_robin' | 'stage_split'>('round_robin');
   const [repDailyLimits, setRepDailyLimits] = useState<Record<string, number>>({});
   const [repLeadLimits, setRepLeadLimits] = useState<Record<string, number>>({});
+  const [repWorkingHours, setRepWorkingHours] = useState<Record<string, { start: number; end: number }>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -79,12 +80,15 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
 
       const daily: Record<string, number> = {};
       const leads: Record<string, number> = {};
+      const hours: Record<string, { start: number; end: number }> = {};
       existingAssignments.forEach((a) => {
         if (a.assignment.daily_send_limit) daily[a.user.id] = a.assignment.daily_send_limit;
         if (a.assignment.assigned_lead_limit) leads[a.user.id] = a.assignment.assigned_lead_limit;
+        if (a.assignment.working_hours?.start !== undefined) hours[a.user.id] = { start: a.assignment.working_hours.start, end: a.assignment.working_hours.end };
       });
       setRepDailyLimits((prev) => ({ ...prev, ...daily }));
       setRepLeadLimits((prev) => ({ ...prev, ...leads }));
+      setRepWorkingHours((prev) => ({ ...prev, ...hours }));
     }
   }, [existingAssignments, selectedRepIds.length]);
 
@@ -135,6 +139,11 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
       if (!prev.includes(repId)) {
         setRepDailyLimits((d) => ({ ...d, [repId]: d[repId] || 25 }));
         setRepLeadLimits((l) => ({ ...l, [repId]: l[repId] || Math.max(10, Math.floor(prospects.length / (next.length || 1))) }));
+        setRepWorkingHours((h) => {
+          if (h[repId]) return h;
+          const repProfile = repsRoster.find((r) => r.user.id === repId)?.profile.working_hours as any;
+          return { ...h, [repId]: { start: repProfile?.start ?? 9, end: repProfile?.end ?? 18 } };
+        });
       }
       return next;
     });
@@ -156,7 +165,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
             representative_id: rep.user.id,
             daily_send_limit: repDailyLimits[rep.user.id] || 25,
             assigned_lead_limit: repLeadLimits[rep.user.id] || 20,
-            working_hours: rep.profile.working_hours || {},
+            working_hours: repWorkingHours[rep.user.id] || rep.profile.working_hours || {},
             routing_rule: { strategy: routingStrategy },
           });
         } else if (wasAssigned) {
@@ -283,6 +292,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
                 <th className="py-3 px-3 text-center">ICP Match</th>
                 <th className="py-3 px-4">Geography & Channels</th>
                 <th className="py-3 px-4">Current Load & Capacity</th>
+                <th className="py-3 px-4 text-center">Working Hours</th>
                 <th className="py-3 px-4 text-center">Daily Limit</th>
                 <th className="py-3 px-4 text-center">Max Leads</th>
               </tr>
@@ -332,13 +342,31 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
                         {rep.score}%
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-[11px] text-slate-300">
+                    <td className="py-3 px-4 text-[11px] text-slate-300 max-w-[220px]">
                       <div>
                         {rep.profile.regions?.join(', ') || 'Geography not configured'} • {rep.profile.timezone || 'Timezone not configured'}
                       </div>
                       <div className="text-slate-500 mt-0.5">
                         {rep.profile.supported_channels?.join(', ') || 'Channels not configured'}
                       </div>
+                      {rep.matchReasons.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {rep.matchReasons.slice(0, 2).map((r, i) => (
+                            <li key={i} className="flex items-start gap-1 text-emerald-400">
+                              <CheckCircle2 className="w-3 h-3 flex-shrink-0 mt-0.5" /> <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {rep.matchWarnings.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {rep.matchWarnings.map((w, i) => (
+                            <li key={i} className="flex items-start gap-1 text-amber-400">
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" /> <span>{w}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-between text-[11px] mb-1">
@@ -375,6 +403,39 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
                           <span>Capacity threshold exceeded. Manager override allowed.</span>
                         </div>
                       )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={23}
+                          disabled={!isSelected}
+                          value={repWorkingHours[rep.user.id]?.start ?? (rep.profile.working_hours as any)?.start ?? 9}
+                          onChange={(e) =>
+                            setRepWorkingHours((prev) => ({
+                              ...prev,
+                              [rep.user.id]: { start: Number(e.target.value), end: prev[rep.user.id]?.end ?? (rep.profile.working_hours as any)?.end ?? 18 },
+                            }))
+                          }
+                          className={`w-11 px-1.5 py-1 bg-[#0c0e1f] border rounded text-right text-xs ${isSelected ? 'border-purple-500/30 text-white' : 'border-transparent text-slate-600 bg-transparent'}`}
+                        />
+                        <span className="text-slate-500">–</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={23}
+                          disabled={!isSelected}
+                          value={repWorkingHours[rep.user.id]?.end ?? (rep.profile.working_hours as any)?.end ?? 18}
+                          onChange={(e) =>
+                            setRepWorkingHours((prev) => ({
+                              ...prev,
+                              [rep.user.id]: { start: prev[rep.user.id]?.start ?? (rep.profile.working_hours as any)?.start ?? 9, end: Number(e.target.value) },
+                            }))
+                          }
+                          className={`w-11 px-1.5 py-1 bg-[#0c0e1f] border rounded text-right text-xs ${isSelected ? 'border-purple-500/30 text-white' : 'border-transparent text-slate-600 bg-transparent'}`}
+                        />
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <input

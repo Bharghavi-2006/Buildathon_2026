@@ -133,9 +133,10 @@ export const campaignsApi = {
   approveProspectBatch: async (id: string): Promise<{ approved_batches: number }> => {
     return await apiClient.post<{ approved_batches: number }>(`/api/manager/campaigns/${id}/prospects/approve-batch`);
   },
-  selectProspects: async (id: string, prospectIds: string[]): Promise<{ selected: string[]; rejected: any[] }> => {
+  selectProspects: async (id: string, prospectIds: string[], minFitScore?: number): Promise<{ selected: string[]; rejected: any[] }> => {
     return await apiClient.post<{ selected: string[]; rejected: any[] }>(`/api/manager/campaigns/${id}/prospects/select`, {
       prospect_ids: prospectIds,
+      ...(minFitScore !== undefined ? { min_fit_score: minFitScore } : {}),
     });
   },
 
@@ -204,5 +205,57 @@ export const campaignsApi = {
   },
   updateDemoMode: async (id: string, data: { demo_mode: boolean; demo_recipient_email?: string | null }): Promise<{ demo_mode: boolean; demo_recipient_email?: string | null }> => {
     return await apiClient.patch(`/api/manager/campaigns/${id}/demo-mode`, data);
+  },
+
+  // Campaign Detail: reply on an existing (even paused-campaign) conversation
+  sendConversationReply: async (conversationId: string, content: string, channel: string = 'email'): Promise<{ delivery_id: string; delivery_mode: string; conversation_id: string }> => {
+    return await apiClient.post(`/conversations/${conversationId}/messages`, { content, channel });
+  },
+  getConversationMessages: async (conversationId: string): Promise<any[]> => {
+    return await apiClient.get(`/conversations/${conversationId}/messages`);
+  },
+
+  // Campaign Detail: who's working this campaign, and the prospect each rep is in talks with
+  getCampaignTeam: async (id: string): Promise<Array<{
+    representative: { id: string; name: string; email: string };
+    assignment: { id: string; daily_send_limit?: number; assigned_lead_limit?: number; working_hours?: Record<string, any> };
+    leads: Array<{ prospect: any; stage: string; qualification_status: string; conversation_status: string | null }>;
+  }>> => {
+    return await apiClient.get(`/api/manager/campaigns/${id}/team`);
+  },
+
+  // Settings: suppression / DNC
+  getSuppressionList: async (): Promise<Array<{ entry: { id: string; reason: string; active: boolean; created_at: string }; prospect: any }>> => {
+    return await apiClient.get('/api/manager/suppression');
+  },
+  addSuppression: async (prospectEmail: string, reason: string): Promise<any> => {
+    return await apiClient.post('/api/manager/suppression', { prospect_email: prospectEmail, reason });
+  },
+  removeSuppression: async (entryId: string): Promise<{ status: string }> => {
+    return await apiClient.delete(`/api/manager/suppression/${entryId}`);
+  },
+
+  // Settings: notification thresholds
+  getNotificationThresholds: async (): Promise<{ approval_aging_threshold_hours: number; capacity_alert_threshold_pct: number }> => {
+    return await apiClient.get('/api/manager/notification-thresholds');
+  },
+  updateNotificationThresholds: async (data: { approval_aging_threshold_hours: number; capacity_alert_threshold_pct: number }): Promise<{ approval_aging_threshold_hours: number; capacity_alert_threshold_pct: number }> => {
+    return await apiClient.patch('/api/manager/notification-thresholds', data);
+  },
+
+  // Settings: team / permissions
+  getTeamPermissions: async (): Promise<Array<{ user: { id: string; name: string; email: string }; profile: { active: boolean } }>> => {
+    return await apiClient.get('/api/manager/team-permissions');
+  },
+  grantManagerAccess: async (name: string, email: string): Promise<any> => {
+    return await apiClient.post('/api/manager/team-permissions', { name, email });
+  },
+  revokeManagerAccess: async (userId: string): Promise<{ status: string }> => {
+    return await apiClient.delete(`/api/manager/team-permissions/${userId}`);
+  },
+
+  // Settings: read-only integration/agent status (environment-managed, not editable here)
+  getIntegrationsStatus: async (): Promise<{ llm_provider: string; demo_mode: boolean; agents: Record<string, string> }> => {
+    return await apiClient.get('/api/manager/integrations-status');
   },
 };

@@ -144,11 +144,20 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
     }
   }, [existingPrompts]);
 
-  // Derived channel availability from actual prospect contact data
+  // Derived channel availability from actual prospect contact data. Email always has a
+  // fallback (nearly every prospect record carries an email, real or placeholder) but
+  // LinkedIn/voice/message are only ever offered when prospects actually carry that
+  // contact method — otherwise the channel is genuinely unusable, not just unchecked.
   const emailAvailableCount = prospects.filter((p) => !!p.prospect.email && !p.prospect.email.endsWith('@apollo.invalid')).length || prospects.length;
   const linkedinAvailableCount = prospects.filter((p) => !!p.prospect.linkedin_url).length;
   const voiceAvailableCount = prospects.filter((p) => !!p.prospect.phone).length;
   const messageAvailableCount = prospects.filter((p) => !!p.prospect.phone || !!p.prospect.email).length;
+
+  useEffect(() => {
+    if (linkedinAvailableCount === 0 && linkedinEnabled) setLinkedinEnabled(false);
+    if (voiceAvailableCount === 0 && voiceEnabled) setVoiceEnabled(false);
+    if (messageAvailableCount === 0 && messageEnabled) setMessageEnabled(false);
+  }, [linkedinAvailableCount, voiceAvailableCount, messageAvailableCount]);
 
   // Enabled agents list for prompting (excluding ICP_FITMENT which is deterministic engine)
   const enabledExecutionAgents = agents
@@ -361,8 +370,8 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white">LinkedIn Touchpoints</h4>
-                  <span className="text-[11px] text-blue-400 font-medium">
-                    {linkedinAvailableCount} prospects reachable
+                  <span className={`text-[11px] font-medium ${linkedinAvailableCount === 0 ? 'text-slate-500' : 'text-blue-400'}`}>
+                    {linkedinAvailableCount === 0 ? 'No prospects have a LinkedIn URL yet' : `${linkedinAvailableCount} prospects reachable`}
                   </span>
                 </div>
               </div>
@@ -370,8 +379,9 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
               <input
                 type="checkbox"
                 checked={linkedinEnabled}
+                disabled={linkedinAvailableCount === 0}
                 onChange={(e) => setLinkedinEnabled(e.target.checked)}
-                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer"
+                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               />
             </div>
 
@@ -406,7 +416,7 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
                 <div>
                   <h4 className="text-xs font-bold text-white">Direct Messages</h4>
                   <span className="text-[11px] text-slate-400 font-medium">
-                    {messageAvailableCount} prospects reachable
+                    {messageAvailableCount === 0 ? 'No prospects reachable via message yet' : `${messageAvailableCount} prospects reachable`}
                   </span>
                 </div>
               </div>
@@ -414,8 +424,9 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
               <input
                 type="checkbox"
                 checked={messageEnabled}
+                disabled={messageAvailableCount === 0}
                 onChange={(e) => setMessageEnabled(e.target.checked)}
-                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer"
+                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               />
             </div>
 
@@ -449,8 +460,8 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white">Voice & Phone Calls</h4>
-                  <span className="text-[11px] text-amber-400 font-medium">
-                    {voiceAvailableCount} prospects reachable
+                  <span className={`text-[11px] font-medium ${voiceAvailableCount === 0 ? 'text-slate-500' : 'text-amber-400'}`}>
+                    {voiceAvailableCount === 0 ? 'No prospects have a phone number yet' : `${voiceAvailableCount} prospects reachable`}
                   </span>
                 </div>
               </div>
@@ -458,8 +469,9 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
               <input
                 type="checkbox"
                 checked={voiceEnabled}
+                disabled={voiceAvailableCount === 0}
                 onChange={(e) => setVoiceEnabled(e.target.checked)}
-                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer"
+                className="rounded border-purple-500/30 accent-purple-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               />
             </div>
 

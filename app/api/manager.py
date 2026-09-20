@@ -14,7 +14,8 @@ from app.policy.engine import PolicyEngine
 from app.fitment.engine import ICPFitmentEngine
 from app.matching.engine import RepMatchEngine
 from app.core.config import settings
-from app.dronahq.registry import agent_registry, run_agent
+from app.dronahq.registry import agent_registry, run_agent, public_agent_status
+from app.hurdles.service import ensure_hurdles
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
 def out(x): return {a.key:getattr(x,a.key) for a in __import__('sqlalchemy').inspect(x).mapper.column_attrs}
@@ -44,7 +45,7 @@ async def fit(db,c,p):
 async def dashboard(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     campaigns=(await db.scalars(select(Campaign))).all(); cards=[]
     for c in campaigns:
-        cards.append({'id':c.id,'name':c.name,'icp_summary':f"{', '.join(c.target_roles)} / {', '.join(c.target_industries)}",'status':c.status,'prospect_count':await db.scalar(select(func.count()).select_from(CampaignProspect).where(CampaignProspect.campaign_id==c.id)) or 0,'outreach_sent':await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.campaign_id==c.id,OutreachEvent.status=='SENT')) or 0,'meetings_booked':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.campaign_id==c.id,Conversation.status=='MEETING_INTENT')) or 0,'created_at':c.created_at,'updated_at':c.updated_at})
+        cards.append({'id':c.id,'name':c.name,'icp_summary':f"{', '.join(c.target_roles)} / {', '.join(c.target_industries)}",'status':c.status,'prospect_count':await db.scalar(select(func.count()).select_from(CampaignProspect).where(CampaignProspect.campaign_id==c.id)) or 0,'outreach_sent':await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.campaign_id==c.id,OutreachEvent.status=='SENT')) or 0,'meetings_booked':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.campaign_id==c.id,Conversation.status=='MEETING_INTENT')) or 0,'open_conversations':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.campaign_id==c.id,Conversation.status=='OPEN')) or 0,'created_at':c.created_at,'updated_at':c.updated_at})
     threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
     aging_count=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.status=='PENDING', ApprovalRequest.created_at < threshold)) or 0
     return {'pending_approvals':await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.status=='PENDING')) or 0,'replies_needing_attention':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.status=='OPEN')) or 0,'meetings_booked_today':sum(x['meetings_booked'] for x in cards),'active_alerts':aging_count,'campaigns':cards}
@@ -52,16 +53,30 @@ async def dashboard(db:AsyncSession=Depends(get_session),identity=Depends(requir
 async def campaigns(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return (await dashboard(db,identity))['campaigns']
 @router.get('/alerts')
 async def alerts(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await ensure_hurdles(db)
     threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
     aging=(await db.execute(select(ApprovalRequest,User).join(User,ApprovalRequest.representative_id==User.id).where(ApprovalRequest.status=='PENDING',ApprovalRequest.created_at < threshold))).all()
     res=[]
     for a,u in aging:
         age_h=max(1,int((datetime.utcnow()-a.created_at).total_seconds()/3600))
-        res.append({'id':a.id,'type':'AGING_APPROVAL','severity':'HIGH','message':f'1 approval draft review • {age_h}h - {u.name} • Immediate attention required','created_at':a.created_at})
+        res.append({'id':a.id,'type':'AGING_APPROVAL','severity':'HIGH','message':f'1 approval draft review • {age_h}h - {u.name} • Immediate attention required','created_at':a.created_at,'representative_id':u.id,'representative_name':u.name})
     # Representative-escalated AI hurdles surface here too, so managers never need a second escalation system.
     escalated=(await db.execute(select(Hurdle,User).outerjoin(User,Hurdle.representative_id==User.id).where(Hurdle.escalated_to_manager==True,Hurdle.status!='RESOLVED'))).all()
     for h,u in escalated:
         res.append({'id':h.id,'type':'HURDLE_ESCALATED','severity':'HIGH' if h.status=='ESCALATED' else 'MEDIUM','message':f'AI hurdle escalated • {h.category.replace("_"," ").title()} - {u.name if u else "Unassigned"} • {h.reason}','created_at':h.escalated_at or h.created_at})
+    # Reps over capacity: same 90% threshold the roster/monitoring screens use.
+    rep_rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE',AccessProfile.active==True))).all()
+    capacity_threshold=settings().capacity_alert_threshold_pct/100
+    for user,profile in rep_rows:
+        active=await db.scalar(select(func.count()).select_from(LeadAssignment).where(LeadAssignment.representative_id==user.id,LeadAssignment.status=='ASSIGNED')) or 0
+        if profile.max_active_leads>0 and active/profile.max_active_leads>=capacity_threshold:
+            pct=round(active/profile.max_active_leads*100)
+            res.append({'id':f'capacity-{user.id}','type':'REP_OVER_CAPACITY','severity':'HIGH' if pct>=100 else 'MEDIUM','message':f'{user.name} is at {pct}% capacity ({active}/{profile.max_active_leads} leads) • Reassign or raise their limit','created_at':datetime.utcnow(),'representative_id':user.id,'representative_name':user.name})
+    # Suppression/DNC blocks: the PolicyEngine already refused these sends; surface them as a platform-wide alert.
+    suppressed=(await db.execute(select(Hurdle,Prospect).outerjoin(Prospect,Hurdle.prospect_id==Prospect.id).where(Hurdle.category=='SUPPRESSION_DNC',Hurdle.status!='RESOLVED'))).all()
+    for h,p in suppressed:
+        who=f'{p.first_name} {p.last_name}'.strip() if p else 'a prospect'
+        res.append({'id':f'suppression-{h.id}','type':'SUPPRESSION_BLOCKED','severity':'MEDIUM','message':f'Outreach to {who} was blocked by the suppression/DNC list • {h.reason}','created_at':h.created_at})
     return res
 @router.post('/campaigns')
 async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
@@ -294,7 +309,7 @@ async def select_prospects(id:str,data:ProspectSelectIn,db:AsyncSession=Depends(
         p=await db.get(Prospect,pid)
         if not p or pid not in approved: rejected.append({'prospect_id':pid,'reason':'Not in approved batch'}); continue
         result=await fit(db,c,p)
-        if result['suppressed'] or any(x['blocking'] for x in result['conflicts']) or result['fit_score']<60: rejected.append({'prospect_id':pid,'reason':'Suppressed, conflict, or ICP fit failure'}); continue
+        if result['suppressed'] or any(x['blocking'] for x in result['conflicts']) or result['fit_score']<data.min_fit_score: rejected.append({'prospect_id':pid,'reason':'Suppressed, conflict, or below fit threshold'}); continue
         if not await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==pid)): db.add(CampaignProspect(campaign_id=id,prospect_id=pid,qualification_status='PREVIEW',qualification_score=result['fit_score'],qualification_reason='; '.join(result['fit_reasons'])))
         selected.append(pid)
     audit(db,'PROSPECT_SELECTED','campaign',id,{'prospect_ids':selected}); await db.commit(); return {'selected':selected,'rejected':rejected}
@@ -355,6 +370,20 @@ async def rep_matches(campaign_id:str,db:AsyncSession=Depends(get_session),ident
         match=engine.evaluate(c, profile, current_load=current_load, campaign_working_hours=campaign_hours)
         results.append({'representative_id':user.id, 'representative':out(user), **match})
     return sorted(results, key=lambda item: (-item['score'], item['representative_id']))
+@router.get('/campaigns/{id}/team')
+async def campaign_team(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Who's working this campaign, and which prospect each of them is in talks with — the manager's roll-up view from Campaign Detail."""
+    await campaign(id,db)
+    assignments=(await db.execute(select(CampaignAssignment,User).join(User,CampaignAssignment.representative_id==User.id).where(CampaignAssignment.campaign_id==id,CampaignAssignment.active==True))).all()
+    result=[]
+    for assignment,user in assignments:
+        lead_rows=(await db.execute(select(LeadAssignment,CampaignProspect,Prospect).join(CampaignProspect,LeadAssignment.campaign_prospect_id==CampaignProspect.id).join(Prospect,CampaignProspect.prospect_id==Prospect.id).where(CampaignProspect.campaign_id==id,LeadAssignment.representative_id==user.id,LeadAssignment.status=='ASSIGNED'))).all()
+        leads=[]
+        for _,cp,p in lead_rows:
+            conversation=await db.scalar(select(Conversation).where(Conversation.campaign_id==id,Conversation.prospect_id==p.id))
+            leads.append({'prospect':out(p),'stage':cp.current_stage,'qualification_status':cp.qualification_status,'conversation_status':conversation.status if conversation else None})
+        result.append({'representative':out(user),'assignment':out(assignment),'leads':leads})
+    return result
 @router.patch('/campaigns/{id}/representatives-config')
 async def save_rep_config(id:str,data:dict,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await draft(id,db); s=await setup_for(c,db); s.representative_settings=data; await db.commit(); return s.representative_settings or {}
@@ -373,3 +402,58 @@ async def lifecycle(id:str,action:str,db:AsyncSession=Depends(get_session),ident
     if action=='pause' and c.status!='LIVE': raise HTTPException(409,'Only live campaigns can be paused')
     if action=='resume' and c.status!='PAUSED': raise HTTPException(409,'Only paused campaigns can resume')
     previous=c.status; c.status='PAUSED' if action=='pause' else 'LIVE'; audit(db,'CAMPAIGN_PAUSED' if action=='pause' else 'CAMPAIGN_RESUMED','campaign',id,{'actor':identity[0].id,'role':'MANAGER','previous_state':previous,'new_state':c.status}); await db.commit(); return out(c)
+
+# --- Platform Settings: suppression/DNC, notification thresholds, team/permissions. ---
+# Global config not scoped to any one campaign, distinct from the per-campaign wizard settings above.
+@router.get('/suppression')
+async def list_suppression(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    rows=(await db.execute(select(SuppressionEntry,Prospect).join(Prospect,SuppressionEntry.prospect_id==Prospect.id).order_by(SuppressionEntry.created_at.desc()))).all()
+    return [{'entry':out(e),'prospect':out(p)} for e,p in rows]
+@router.post('/suppression')
+async def add_suppression(data:SuppressionIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    p=await db.scalar(select(Prospect).where(Prospect.email==data.prospect_email.strip().lower()))
+    if not p: raise HTTPException(404,'No known prospect with that email; suppression only applies to prospects already in the system')
+    existing=await db.scalar(select(SuppressionEntry).where(SuppressionEntry.prospect_id==p.id,SuppressionEntry.active==True))
+    if existing: return {'entry':out(existing),'prospect':out(p)}
+    entry=SuppressionEntry(prospect_id=p.id,reason=data.reason,active=True); db.add(entry); await db.flush()
+    audit(db,'SUPPRESSION_ADDED','suppression_entry',entry.id,{'actor':identity[0].id,'prospect_id':p.id,'reason':data.reason}); await db.commit()
+    return {'entry':out(entry),'prospect':out(p)}
+@router.delete('/suppression/{entry_id}')
+async def remove_suppression(entry_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    entry=await db.get(SuppressionEntry,entry_id)
+    if not entry: raise HTTPException(404,'Suppression entry not found')
+    entry.active=False; audit(db,'SUPPRESSION_REMOVED','suppression_entry',entry.id,{'actor':identity[0].id,'prospect_id':entry.prospect_id}); await db.commit()
+    return {'status':'removed'}
+@router.get('/notification-thresholds')
+async def get_notification_thresholds(identity=Depends(require_manager)):
+    return {'approval_aging_threshold_hours':settings().approval_aging_threshold_hours,'capacity_alert_threshold_pct':settings().capacity_alert_threshold_pct}
+@router.patch('/notification-thresholds')
+async def update_notification_thresholds(data:NotificationThresholdsIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    settings().approval_aging_threshold_hours=data.approval_aging_threshold_hours
+    settings().capacity_alert_threshold_pct=data.capacity_alert_threshold_pct
+    audit(db,'NOTIFICATION_THRESHOLDS_UPDATED','settings','global',{'actor':identity[0].id,**data.model_dump()}); await db.commit()
+    return {'approval_aging_threshold_hours':settings().approval_aging_threshold_hours,'capacity_alert_threshold_pct':settings().capacity_alert_threshold_pct}
+@router.get('/team-permissions')
+async def list_manager_permissions(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='MANAGER'))).all()
+    return [{'user':out(u),'profile':out(p)} for u,p in rows]
+@router.post('/team-permissions')
+async def grant_manager_access(data:ManagerCreateIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    user=await db.scalar(select(User).where(User.email==data.email.strip().lower()))
+    if not user: user=User(name=data.name,email=data.email.strip().lower()); db.add(user); await db.flush()
+    profile=await db.scalar(select(AccessProfile).where(AccessProfile.user_id==user.id,AccessProfile.role=='MANAGER'))
+    if profile: profile.active=True
+    else: profile=AccessProfile(user_id=user.id,role='MANAGER',active=True); db.add(profile)
+    audit(db,'MANAGER_ACCESS_GRANTED','access_profile',profile.id if profile.id else user.id,{'actor':identity[0].id,'email':user.email}); await db.commit()
+    return {'user':out(user),'profile':out(profile)}
+@router.delete('/team-permissions/{user_id}')
+async def revoke_manager_access(user_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    if user_id==identity[0].id: raise HTTPException(409,'You cannot revoke your own manager access')
+    profile=await db.scalar(select(AccessProfile).where(AccessProfile.user_id==user_id,AccessProfile.role=='MANAGER'))
+    if not profile: raise HTTPException(404,'Manager access record not found')
+    profile.active=False; audit(db,'MANAGER_ACCESS_REVOKED','access_profile',profile.id,{'actor':identity[0].id,'target_user_id':user_id}); await db.commit()
+    return {'status':'revoked'}
+@router.get('/integrations-status')
+async def integrations_status(identity=Depends(require_manager)):
+    """Read-only: these are environment-managed (webhook URLs/API keys, LLM provider), not editable from the UI."""
+    return {'llm_provider':settings().llm_provider,'demo_mode':settings().demo_mode,'agents':public_agent_status()}

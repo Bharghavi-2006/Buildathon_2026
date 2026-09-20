@@ -132,17 +132,19 @@ export const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Warning Alert Banner (from Backend aging approvals) */}
+      {/* Global banner: platform-wide warnings (aging approvals, reps over capacity, suppression
+          blocks, escalated hurdles) surfaced above the table so nothing urgent is buried inside
+          a specific campaign. Shows the most severe issue plus a count of anything else waiting. */}
       {alerts && alerts.length > 0 && (
         <AlertBanner
-          message={alerts[0].message}
+          message={alerts.length > 1 ? `${alerts[0].message}  ·  +${alerts.length - 1} more issue${alerts.length - 1 === 1 ? '' : 's'} waiting` : alerts[0].message}
           actionLabel="Review Now"
-          onAction={() => navigate('/monitoring')}
+          onAction={() => setActivePanel('alerts')}
         />
       )}
 
-      {/* 4 Metric Cards matching Screenshot 2 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 4 Metric Cards — Active Alerts is the escalation signal, so it gets the wider "urgent" slot. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <MetricCard
           value={dashboard.pending_approvals}
           label="Pending Approvals"
@@ -164,13 +166,15 @@ export const Dashboard: React.FC = () => {
           color="emerald"
           onClick={() => setActivePanel('meetings')}
         />
-        <MetricCard
-          value={dashboard.active_alerts}
-          label="Active Alerts"
-          subtext={dashboard.active_alerts > 0 ? 'Requires attention' : 'All systems normal'}
-          color="purple"
-          onClick={() => setActivePanel('alerts')}
-        />
+        <div className="sm:col-span-2 lg:col-span-2">
+          <MetricCard
+            value={dashboard.active_alerts}
+            label="Active Alerts"
+            subtext={dashboard.active_alerts > 0 ? `${alerts?.length ?? 0} issue${(alerts?.length ?? 0) === 1 ? '' : 's'} across the platform` : 'All systems normal'}
+            color="purple"
+            onClick={() => setActivePanel('alerts')}
+          />
+        </div>
       </div>
 
       {/* Campaigns Section */}
@@ -189,7 +193,7 @@ export const Dashboard: React.FC = () => {
               <thead>
                 <tr className="border-b border-purple-500/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-[#090b1a]">
                   <th className="py-3.5 px-5">Campaign Name</th>
-                  <th className="py-3.5 px-4">Rep</th>
+                  <th className="py-3.5 px-4">ICP</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Prospects</th>
                   <th className="py-3.5 px-4 text-right">Outreach Sent</th>
@@ -218,19 +222,17 @@ export const Dashboard: React.FC = () => {
                           <div className="font-semibold text-white group-hover:text-purple-300 transition-colors">
                             {c.name}
                           </div>
-                          <div className="text-xs text-slate-400 line-clamp-1 mt-0.5">
-                            {c.icp_summary || 'No ICP defined'}
-                          </div>
                         </td>
-                        <td className="py-4 px-4 text-xs text-slate-300">
-                          {c.rep || 'Unassigned'}
+                        <td className="py-4 px-4 text-xs text-slate-300 max-w-[220px]">
+                          <span className="line-clamp-1">{c.icp_summary || 'No ICP defined'}</span>
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
                             <StatusBadge status={c.status === 'LIVE' ? 'Active' : c.status} />
-                            {isPaused && (
-                              <span className="text-[11px] text-amber-400/80 font-medium">
-                                · 2 open
+                            {isPaused && c.open_conversations > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-400/80 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                {c.open_conversations} open
                               </span>
                             )}
                           </div>

@@ -6,6 +6,14 @@ from app.db.models import Campaign, CampaignAgent, CampaignProspect, Suppression
 from app.schemas import PolicyResult
 
 class PolicyEngine:
+  async def check_continuation(self, db: AsyncSession, prospect_id: str, channel: str) -> PolicyResult:
+    """A reply on an already-open conversation is not new outreach: campaign-paused,
+    daily limits, working hours, and cross-campaign conflict all govern whether a NEW
+    prospect enters a funnel, not whether a human can finish a thread already underway.
+    Only the two safety-critical, never-bypassable checks apply here."""
+    if settings().global_kill_switch: return PolicyResult(allowed=False, reason='Global kill switch is active', rule='GLOBAL_KILL_SWITCH')
+    if await db.scalar(select(SuppressionEntry).where(SuppressionEntry.prospect_id==prospect_id, SuppressionEntry.active==True)): return PolicyResult(allowed=False, reason='Prospect is suppressed', rule='SUPPRESSION')
+    return PolicyResult(allowed=True, reason='Continuing an already-open conversation', rule='ALLOWED')
   async def check_agent_execution(self, db: AsyncSession, campaign: Campaign, agent_type: str) -> PolicyResult:
     if settings().global_kill_switch: return PolicyResult(allowed=False,reason='Global kill switch is active',rule='GLOBAL_KILL_SWITCH')
     if campaign.status=='PAUSED': return PolicyResult(allowed=False,reason='Campaign is currently paused by the manager.',rule='CAMPAIGN_PAUSED')

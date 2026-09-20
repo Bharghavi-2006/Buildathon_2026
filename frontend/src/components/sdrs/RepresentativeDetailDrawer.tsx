@@ -21,6 +21,7 @@ import {
   Sparkles,
   Award,
   AlertCircle,
+  UserPlus,
 } from 'lucide-react';
 import { representativesApi } from '../../api/representatives';
 import { campaignsApi } from '../../api/campaigns';
@@ -43,6 +44,8 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
   const queryClient = useQueryClient();
   const [isEditingCapacity, setIsEditingCapacity] = useState(false);
   const [capacityInput, setCapacityInput] = useState<number>(50);
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+  const [campaignToAssign, setCampaignToAssign] = useState('');
 
   // Fetch full representative profile, workload, assignments, approvals
   const { data: detail, isLoading, error } = useQuery({
@@ -56,6 +59,28 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
     queryKey: ['rep-matches', campaignContextId],
     queryFn: () => campaignsApi.getRepMatches(campaignContextId!),
     enabled: !!campaignContextId && !matchData,
+  });
+
+  // All campaigns, for the "Assign to Campaign" picker — same assignment record Step 6 of the wizard writes to
+  const { data: dashboardData } = useQuery({
+    queryKey: ['manager-dashboard'],
+    queryFn: campaignsApi.getDashboard,
+    enabled: showAssignPicker,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      if (!representativeId) return;
+      return await campaignsApi.assignRepresentative(campaignId, { representative_id: representativeId });
+    },
+    onSuccess: () => {
+      setShowAssignPicker(false);
+      setCampaignToAssign('');
+      queryClient.invalidateQueries({ queryKey: ['representative-detail', representativeId] });
+      queryClient.invalidateQueries({ queryKey: ['team-representatives'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-representatives'] });
+    },
+    onError: (err: any) => alert(err.message || 'Failed to assign representative to campaign'),
   });
 
   const activeMatch: RepMatchItem | undefined =
@@ -450,7 +475,39 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
                 <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
                   Campaign Assignments ({assignments.length})
                 </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignPicker((v) => !v)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600 hover:text-white text-[11px] font-semibold transition-all"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Assign to Campaign
+                </button>
               </div>
+
+              {showAssignPicker && (
+                <div className="p-3 bg-purple-950/20 border border-purple-500/30 rounded-xl flex items-center gap-2">
+                  <select
+                    value={campaignToAssign}
+                    onChange={(e) => setCampaignToAssign(e.target.value)}
+                    className="flex-1 px-2.5 py-1.5 bg-[#070811] border border-purple-500/30 rounded-lg text-white text-xs"
+                  >
+                    <option value="">Select a campaign...</option>
+                    {(dashboardData?.campaigns || [])
+                      .filter((c) => !assignments.some((a) => a.campaign.id === c.id))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.status})</option>
+                      ))}
+                  </select>
+                  <button
+                    disabled={!campaignToAssign || assignMutation.isPending}
+                    onClick={() => assignMutation.mutate(campaignToAssign)}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold"
+                  >
+                    {assignMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Assign'}
+                  </button>
+                </div>
+              )}
 
               {assignments.length === 0 ? (
                 <div className="p-4 bg-[#070811] rounded-xl border border-purple-500/10 text-slate-500 text-center">

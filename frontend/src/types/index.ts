@@ -52,6 +52,7 @@ export interface DashboardCampaignCard {
   prospect_count: number;
   outreach_sent: number;
   meetings_booked: number;
+  open_conversations: number;
   created_at: string;
   updated_at: string;
   rep?: string;
@@ -71,6 +72,8 @@ export interface AlertItem {
   severity: string;
   message: string;
   created_at: string;
+  representative_id?: string;
+  representative_name?: string;
 }
 
 export interface Prospect {
@@ -187,6 +190,8 @@ export interface RepresentativeItem {
   active_campaigns_count?: number;
   pending_approvals?: number;
   aging_approvals?: number;
+  active_agent_types?: string[];
+  paused_agent_types?: string[];
 }
 
 export interface CampaignAgentItem {

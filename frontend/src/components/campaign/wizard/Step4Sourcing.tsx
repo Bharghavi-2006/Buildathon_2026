@@ -196,8 +196,9 @@ export const Step4Sourcing: React.FC<Step4SourcingProps> = ({
       setActionSuccess(null);
       // 1. Approve preview batches
       await campaignsApi.approveProspectBatch(campaignId);
-      // 2. Select chosen prospect IDs
-      const result = await campaignsApi.selectProspects(campaignId, selectedIds);
+      // 2. Select chosen prospect IDs — pass the manager's chosen threshold through so
+      // the backend's own qualification bar (not a separate hardcoded one) is what decides.
+      const result = await campaignsApi.selectProspects(campaignId, selectedIds, threshold);
       return result;
     },
     onSuccess: (result) => {
