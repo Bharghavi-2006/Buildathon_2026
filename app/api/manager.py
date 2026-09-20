@@ -58,6 +58,10 @@ async def alerts(db:AsyncSession=Depends(get_session),identity=Depends(require_m
     for a,u in aging:
         age_h=max(1,int((datetime.utcnow()-a.created_at).total_seconds()/3600))
         res.append({'id':a.id,'type':'AGING_APPROVAL','severity':'HIGH','message':f'1 approval draft review • {age_h}h - {u.name} • Immediate attention required','created_at':a.created_at})
+    # Representative-escalated AI hurdles surface here too, so managers never need a second escalation system.
+    escalated=(await db.execute(select(Hurdle,User).outerjoin(User,Hurdle.representative_id==User.id).where(Hurdle.escalated_to_manager==True,Hurdle.status!='RESOLVED'))).all()
+    for h,u in escalated:
+        res.append({'id':h.id,'type':'HURDLE_ESCALATED','severity':'HIGH' if h.status=='ESCALATED' else 'MEDIUM','message':f'AI hurdle escalated • {h.category.replace("_"," ").title()} - {u.name if u else "Unassigned"} • {h.reason}','created_at':h.escalated_at or h.created_at})
     return res
 @router.post('/campaigns')
 async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):

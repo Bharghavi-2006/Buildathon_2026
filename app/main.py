@@ -528,3 +528,191 @@ async def my_performance(db:AsyncSession=Depends(get_session),identity=Depends(c
     if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
     leads=await my_leads(db,identity); ids={x['prospect']['id'] for x in leads}; sent=await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.prospect_id.in_(ids),OutreachEvent.status=='SENT')) or 0
     return {'representative_id':user.id,'assigned_leads':len(leads),'outreach_sent':sent,'pending_approvals':await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status=='PENDING')) or 0}
+
+# --- AI Hurdles: materialized from real policy blocks, failed agent runs, and aging approvals. ---
+# Deterministic map of the PolicyEngine's fixed reason strings to a hurdle category/severity.
+# The reason strings are the exhaustive, hardcoded set PolicyEngine.check() can ever return (app/policy/engine.py).
+HURDLE_REASON_MAP={
+    'Global kill switch is active':('POLICY_VIOLATION','WARNING'),
+    'Campaign is currently paused by the manager.':('POLICY_VIOLATION','WARNING'),
+    'Channel disabled for campaign':('CHANNEL_UNAVAILABLE','WARNING'),
+    'Channel paused by manager':('CHANNEL_UNAVAILABLE','WARNING'),
+    'Representative is inactive':('POLICY_VIOLATION','WARNING'),
+    'Channel globally paused':('CHANNEL_UNAVAILABLE','WARNING'),
+    'Outreach agent paused':('POLICY_VIOLATION','WARNING'),
+    'Prospect is suppressed':('SUPPRESSION_DNC','ESCALATED'),
+    'Contact frequency limit: contacted within 24 hours':('POLICY_VIOLATION','WARNING'),
+    'Campaign daily outreach limit reached':('POLICY_VIOLATION','WARNING'),
+    'Representative daily outreach limit reached':('POLICY_VIOLATION','WARNING'),
+    'Outside configured working hours':('POLICY_VIOLATION','WARNING'),
+    'Active outreach in another live campaign':('DUPLICATE_CONFLICT','ESCALATED'),
+}
+HURDLE_RECOMMENDED_ACTION={
+    'SUPPRESSION_DNC':'Do not contact. This prospect is on the suppression/DNC list; confirm with your manager before any override.',
+    'DUPLICATE_CONFLICT':'Coordinate with the owning campaign before continuing outreach; a blocking cross-campaign conflict was detected.',
+    'CHANNEL_UNAVAILABLE':'This channel is currently disabled or unconfigured. Switch channel or ask your manager to re-enable it.',
+    'POLICY_VIOLATION':'Review the policy reason. No outbound action is available on this prospect until it clears on its own or a manager intervenes.',
+    'APPROVAL_BOTTLENECK':'This approval has aged past the SLA threshold. Review and act now, or escalate to your manager.',
+    'MISSING_KNOWLEDGE':'The agent could not find enough verified information to proceed. Attach relevant knowledge to the campaign or escalate.',
+}
+async def _hurdle_representative(db,campaign_id,prospect_id):
+    if not prospect_id: return None
+    cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==campaign_id,CampaignProspect.prospect_id==prospect_id))
+    if not cp: return None
+    assignment=await db.scalar(select(LeadAssignment).where(LeadAssignment.campaign_prospect_id==cp.id,LeadAssignment.status=='ASSIGNED'))
+    return assignment.representative_id if assignment else None
+async def ensure_hurdles(db:AsyncSession):
+    """Idempotently materialize Hurdle rows from real, already-persisted signals. Never invents data."""
+    existing=set((await db.execute(select(Hurdle.source_type,Hurdle.source_id))).all())
+    created=False
+    for event in (await db.scalars(select(OutreachEvent).where(OutreachEvent.status=='BLOCKED'))).all():
+        if ('OUTREACH_EVENT',event.id) in existing: continue
+        category,severity=HURDLE_REASON_MAP.get(event.blocked_reason,('POLICY_VIOLATION','WARNING'))
+        rep_id=await _hurdle_representative(db,event.campaign_id,event.prospect_id)
+        db.add(Hurdle(source_type='OUTREACH_EVENT',source_id=event.id,campaign_id=event.campaign_id,prospect_id=event.prospect_id,representative_id=rep_id,channel=event.channel,category=category,status=severity,agent_type='PERSONALIZATION',reason=event.blocked_reason,recommended_action=HURDLE_RECOMMENDED_ACTION[category],context={'outreach_event_id':event.id}))
+        created=True
+    for run in (await db.scalars(select(AgentRun).where(AgentRun.status=='FAILED',AgentRun.prospect_id.is_not(None)))).all():
+        if ('AGENT_RUN',run.id) in existing: continue
+        out=run.output_data or {}
+        if out.get('error_code')=='AGENT_NOT_CONFIGURED': category,severity='CHANNEL_UNAVAILABLE','WARNING'
+        else: category,severity='MISSING_KNOWLEDGE','ESCALATED'
+        rep_id=await _hurdle_representative(db,run.campaign_id,run.prospect_id)
+        db.add(Hurdle(source_type='AGENT_RUN',source_id=run.id,campaign_id=run.campaign_id,prospect_id=run.prospect_id,representative_id=rep_id,category=category,status=severity,agent_type=run.agent_type,agent_run_id=run.id,reason=out.get('error') or out.get('message') or f'{run.agent_type} run failed.',recommended_action=HURDLE_RECOMMENDED_ACTION[category],context={'agent_run_id':run.id,'output_data':out}))
+        created=True
+    threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
+    for approval in (await db.scalars(select(ApprovalRequest).where(ApprovalRequest.status=='PENDING',ApprovalRequest.created_at<threshold))).all():
+        if ('APPROVAL_REQUEST',approval.id) in existing: continue
+        cp=await db.get(CampaignProspect,approval.campaign_prospect_id) if approval.campaign_prospect_id else None
+        age_h=int((datetime.utcnow()-approval.created_at).total_seconds()/3600)
+        db.add(Hurdle(source_type='APPROVAL_REQUEST',source_id=approval.id,campaign_id=approval.campaign_id,prospect_id=cp.prospect_id if cp else None,representative_id=approval.representative_id,channel=(approval.payload or {}).get('channel','email'),category='APPROVAL_BOTTLENECK',status='ESCALATED',agent_type=(approval.payload or {}).get('agent','PERSONALIZATION'),reason=f'Approval has been pending for {age_h}h, past the {settings().approval_aging_threshold_hours}h SLA threshold.',recommended_action=HURDLE_RECOMMENDED_ACTION['APPROVAL_BOTTLENECK'],context={'approval_id':approval.id,'age_hours':age_h}))
+        created=True
+    if created: await db.commit()
+async def hurdle_view(h,db):
+    prospect=await db.get(Prospect,h.prospect_id) if h.prospect_id else None
+    campaign=await db.get(Campaign,h.campaign_id)
+    age_h=round((datetime.utcnow()-h.created_at).total_seconds()/3600,1)
+    return {'id':h.id,'status':h.status,'category':h.category,'channel':h.channel,'campaign':{'id':campaign.id,'name':campaign.name} if campaign else None,'prospect':dump(prospect) if prospect else None,'reason':h.reason,'recommended_action':h.recommended_action,'agent_type':h.agent_type,'age_hours':age_h,'escalated_to_manager':h.escalated_to_manager,'created_at':h.created_at,'updated_at':h.updated_at}
+async def rep_hurdle_or_404(id,user_id,db):
+    h=await db.get(Hurdle,id)
+    if not h or h.representative_id!=user_id: raise HTTPException(404,'Hurdle not found in your queue')
+    return h
+@app.get('/api/rep/hurdles')
+async def rep_hurdles(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    await ensure_hurdles(db)
+    rows=(await db.scalars(select(Hurdle).where(Hurdle.representative_id==user.id).order_by(Hurdle.created_at.desc()))).all()
+    return [await hurdle_view(h,db) for h in rows]
+@app.get('/api/rep/hurdles/{id}')
+async def rep_hurdle_detail(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    h=await rep_hurdle_or_404(id,user.id,db)
+    campaign=await campaign_or_404(h.campaign_id,db); prospect=await db.get(Prospect,h.prospect_id) if h.prospect_id else None
+    company=await db.get(Company,prospect.company_id) if prospect and prospect.company_id else None
+    conversation=await db.scalar(select(Conversation).where(Conversation.campaign_id==h.campaign_id,Conversation.prospect_id==h.prospect_id)) if h.prospect_id else None
+    messages=(await db.scalars(select(Message).where(Message.conversation_id==conversation.id).order_by(Message.created_at.desc()).limit(5))).all() if conversation else []
+    agent_run=await db.get(AgentRun,h.agent_run_id) if h.agent_run_id else None
+    if not agent_run and h.prospect_id: agent_run=await db.scalar(select(AgentRun).where(AgentRun.campaign_id==h.campaign_id,AgentRun.prospect_id==h.prospect_id,AgentRun.agent_type.in_(['PERSONALIZATION','personalization'])).order_by(AgentRun.created_at.desc()))
+    rag_context=await SimpleRetriever().retrieve(db,f'{campaign.instructions} {h.reason}')
+    week_ago=datetime.utcnow()-timedelta(days=7)
+    recurring_count=await db.scalar(select(func.count()).select_from(Hurdle).where(Hurdle.category==h.category,Hurdle.campaign_id==h.campaign_id,Hurdle.created_at>week_ago)) or 0
+    already_flagged=bool(await db.scalar(select(KnowledgeGapFlag).where(KnowledgeGapFlag.campaign_id==h.campaign_id,KnowledgeGapFlag.category==h.category,KnowledgeGapFlag.created_at>week_ago)))
+    voice=None
+    if h.channel=='voice':
+        ctx=h.context or {}
+        voice={'call_status':ctx.get('call_status'),'transcript':ctx.get('transcript'),'sentiment':(agent_run.output_data or {}).get('sentiment') if agent_run else None,'transfer_status':ctx.get('transfer_status'),'callback_required':ctx.get('callback_required'),'note':'Voice call telemetry is not available from the backend for this hurdle.' if not ctx.get('transcript') else None}
+    return {**await hurdle_view(h,db),'organization':dump(company) if company else None,
+        'policy_decision':{'rule':h.policy_rule or h.category,'reason':h.reason} if h.source_type=='OUTREACH_EVENT' else None,
+        'agent_escalated':{'agent_type':agent_run.agent_type,'agent_run_id':agent_run.id,'status':agent_run.status,'engine_version':(agent_run.output_data or {}).get('engine_version'),'dronahq_execution_id':(agent_run.output_data or {}).get('dronahq_execution_id'),'output':agent_run.output_data} if agent_run else None,
+        'conversation':{'id':conversation.id,'status':conversation.status,'messages':[dump(m) for m in reversed(messages)]} if conversation else None,
+        'rag_context':rag_context,'voice':voice,
+        'recurring':{'count_this_week':recurring_count,'is_recurring':h.category=='MISSING_KNOWLEDGE' and recurring_count>=2,'already_flagged':already_flagged},
+        'resolution':{'status':h.status,'resolved_at':h.resolved_at,'resolved_by_id':h.resolved_by_id,'resolution_note':h.resolution_note}}
+@app.post('/api/rep/hurdles/{id}/resolve')
+async def rep_hurdle_resolve(id:str,data:HurdleResolveIn,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    h=await rep_hurdle_or_404(id,user.id,db)
+    if h.status=='RESOLVED': raise HTTPException(409,'Hurdle is already resolved')
+    h.status='RESOLVED'; h.resolved_at=datetime.utcnow(); h.resolved_by_id=user.id; h.resolution_note=data.note
+    db.add(AuditLog(action='HURDLE_RESOLVED',entity_type='hurdle',entity_id=h.id,details={'actor':user.id,'role':'REPRESENTATIVE','campaign_id':h.campaign_id,'category':h.category,'note':data.note}))
+    await db.commit(); return await hurdle_view(h,db)
+@app.post('/api/rep/hurdles/{id}/escalate')
+async def rep_hurdle_escalate(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    h=await rep_hurdle_or_404(id,user.id,db)
+    h.escalated_to_manager=True; h.escalated_at=datetime.utcnow(); h.status='ESCALATED' if h.status!='RESOLVED' else h.status
+    db.add(AuditLog(action='HURDLE_ESCALATED_TO_MANAGER',entity_type='hurdle',entity_id=h.id,details={'actor':user.id,'role':'REPRESENTATIVE','campaign_id':h.campaign_id,'category':h.category}))
+    await db.commit(); return await hurdle_view(h,db)
+@app.post('/api/rep/hurdles/{id}/flag-knowledge-gap')
+async def rep_hurdle_flag_knowledge_gap(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    h=await rep_hurdle_or_404(id,user.id,db)
+    flag=KnowledgeGapFlag(hurdle_id=h.id,campaign_id=h.campaign_id,category=h.category,flagged_by_id=user.id)
+    db.add(flag); db.add(AuditLog(action='KNOWLEDGE_GAP_FLAGGED',entity_type='hurdle',entity_id=h.id,details={'actor':user.id,'campaign_id':h.campaign_id,'category':h.category})); await db.commit()
+    week_ago=datetime.utcnow()-timedelta(days=7)
+    count=await db.scalar(select(func.count()).select_from(Hurdle).where(Hurdle.category==h.category,Hurdle.campaign_id==h.campaign_id,Hurdle.created_at>week_ago)) or 0
+    return {'flag_id':flag.id,'category':h.category,'count_this_week':count}
+@app.post('/api/rep/hurdles/{id}/knowledge')
+async def rep_hurdle_attach_knowledge(id:str,data:HurdleKnowledgeIn,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    """Persists a real KnowledgeDocument via the existing KB table; scoped to the hurdle's campaign."""
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    h=await rep_hurdle_or_404(id,user.id,db)
+    await representative_campaign_access(h.campaign_id,user.id,db)
+    if not data.title.strip() or not data.content.strip(): raise HTTPException(422,'title and content are required')
+    doc=KnowledgeDocument(title=data.title.strip(),content=data.content.strip(),category=f'campaign_{h.campaign_id}')
+    db.add(doc); await db.flush()
+    db.add(AuditLog(action='KNOWLEDGE_ATTACHED',entity_type='knowledge_document',entity_id=doc.id,details={'actor':user.id,'role':'REPRESENTATIVE','campaign_id':h.campaign_id,'hurdle_id':h.id}))
+    await db.commit(); return dump(doc)
+
+# Rep guardrails: read-only projection of campaign config, channel state, working hours, capacity, and conflicts.
+# Every figure here is read directly from the same tables PolicyEngine authoritatively checks against.
+@app.get('/api/rep/guardrails')
+async def rep_guardrails(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    assignments=(await db.scalars(select(CampaignAssignment).where(CampaignAssignment.representative_id==user.id,CampaignAssignment.active==True))).all()
+    now_hour=datetime.utcnow().hour; day_ago=datetime.utcnow()-timedelta(days=1)
+    campaign_cards=[]
+    for assignment in assignments:
+        campaign=await db.get(Campaign,assignment.campaign_id)
+        channel_rows=(await db.scalars(select(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==campaign.id))).all()
+        channels=[]
+        for row in channel_rows:
+            used=await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.campaign_id==campaign.id,OutreachEvent.channel==row.channel,OutreachEvent.status=='SENT',OutreachEvent.created_at>day_ago)) or 0
+            hours=row.working_hours or {}; start=hours.get('start'); end=hours.get('end')
+            outside_hours=start is not None and end is not None and not (int(start)<=now_hour<int(end))
+            if settings().global_kill_switch: availability='BLOCKED_KILL_SWITCH'
+            elif campaign.status!='LIVE': availability='BLOCKED_CAMPAIGN_PAUSED'
+            elif not row.enabled: availability='PAUSED'
+            elif outside_hours: availability='OUTSIDE_WORKING_HOURS'
+            elif used>=row.daily_limit: availability='LIMIT_REACHED'
+            else: availability='LIVE'
+            channels.append({'channel':row.channel,'enabled':row.enabled,'daily_used':used,'daily_limit':row.daily_limit,'working_hours':hours,'approval_required':row.approval_required,'availability':availability})
+        agents_enabled=[a.agent_type for a in (await db.scalars(select(CampaignAgent).where(CampaignAgent.campaign_id==campaign.id,CampaignAgent.enabled==True))).all()]
+        lead_rows=(await db.execute(select(CampaignProspect,Prospect).join(Prospect,CampaignProspect.prospect_id==Prospect.id).join(LeadAssignment,LeadAssignment.campaign_prospect_id==CampaignProspect.id).where(CampaignProspect.campaign_id==campaign.id,LeadAssignment.representative_id==user.id,LeadAssignment.status=='ASSIGNED'))).all()
+        conflicts=[]
+        for cp,prospect in lead_rows:
+            overlap=(await db.execute(select(CampaignProspect,Campaign).join(Campaign,CampaignProspect.campaign_id==Campaign.id).where(CampaignProspect.prospect_id==prospect.id,CampaignProspect.campaign_id!=campaign.id,Campaign.status=='LIVE',CampaignProspect.last_contacted_at.is_not(None)))).all()
+            for other_cp,other_campaign in overlap:
+                conflicts.append({'prospect_id':prospect.id,'prospect_name':f'{prospect.first_name} {prospect.last_name}'.strip(),'other_campaign_id':other_campaign.id,'other_campaign_name':other_campaign.name,'message':'Prospect is active in another campaign.'})
+        campaign_cards.append({
+            'campaign':{'id':campaign.id,'name':campaign.name,'status':campaign.status,'icp_summary':f"{', '.join(campaign.target_roles) or 'Any role'} / {', '.join(campaign.target_industries) or 'Any industry'} / {campaign.target_geography or 'Any geography'}",'daily_outreach_limit':campaign.daily_outreach_limit,'approval_required':campaign.approval_required,'demo_mode':campaign.demo_mode},
+            'restrictions':['ICP, prompts, RAG configuration, routing, agents, daily limits, and campaign status are managed by your manager.'],
+            'channels':channels,'agents_enabled':agents_enabled,
+            'working_hours':assignment.working_hours or {},
+            'paused_message':'Campaign paused by manager.' if campaign.status=='PAUSED' else None,
+            'conflicts':conflicts,
+        })
+    used_today=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status.in_(['SENT','SCHEDULED']),ApprovalRequest.updated_at>day_ago)) or 0
+    limit=next((a.daily_send_limit for a in assignments if a.daily_send_limit is not None),25)
+    return {
+        'kill_switch':{'active':settings().global_kill_switch,'message':'All outbound activity has been stopped platform-wide by an administrator.' if settings().global_kill_switch else None},
+        'representative_profile':{'timezone':profile.timezone,'working_hours':profile.working_hours,'supported_channels':profile.supported_channels},
+        'daily_capacity':{'used':used_today,'limit':limit,'remaining':max(0,limit-used_today),'exhausted':used_today>=limit,'warning':used_today>=int(limit*0.8) and used_today<limit},
+        'campaigns':campaign_cards,
+    }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, TrendingUp, Settings, HelpCircle, CheckSquare, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, TrendingUp, Settings, HelpCircle, CheckSquare, MessageSquare, AlertOctagon, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
@@ -108,6 +108,34 @@ export const Sidebar: React.FC = () => {
               >
                 <MessageSquare className="w-4 h-4" />
                 Conversations
+              </NavLink>
+
+              <NavLink
+                to="/rep/hurdles"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
+                  }`
+                }
+              >
+                <AlertOctagon className="w-4 h-4" />
+                AI Hurdles
+              </NavLink>
+
+              <NavLink
+                to="/rep/guardrails"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
+                  }`
+                }
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Guardrails
               </NavLink>
             </>
           )}

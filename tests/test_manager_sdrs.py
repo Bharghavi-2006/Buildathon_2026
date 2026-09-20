@@ -1,11 +1,16 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.db.session import SessionLocal
+from app.db.session import init_db, SessionLocal
+from app.seed.data import seed
 from app.db.models import User, AccessProfile, Campaign, CampaignAssignment
 
 @pytest.mark.asyncio
 async def test_manager_sdrs_workflow():
+    # Self-sufficient regardless of test execution order (mirrors test_new_campaign_flow.py).
+    await init_db()
+    async with SessionLocal() as db:
+        await seed(db)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Non-manager access is forbidden (403)
