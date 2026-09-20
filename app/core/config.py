@@ -1,14 +1,30 @@
 from functools import lru_cache
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 import os
 from dotenv import load_dotenv
 
 # Optional local configuration. The app still runs when no .env file exists.
 load_dotenv()
 
+def _normalize_database_url(url: str) -> str:
+    """Managed Postgres providers (Render, Heroku, Railway, ...) hand out
+    'postgres://...?sslmode=require' connection strings. This app's async engine
+    needs the asyncpg driver and asyncpg's own 'ssl' query param, not libpq's
+    'sslmode' — without this, a pasted provider URL fails to even connect.
+    """
+    parts = urlsplit(url)
+    if parts.scheme not in ('postgres', 'postgresql'):
+        return url
+    query = dict(parse_qsl(parts.query))
+    sslmode = query.pop('sslmode', None)
+    if sslmode and 'ssl' not in query:
+        query['ssl'] = 'require' if sslmode not in ('disable', 'allow') else 'disable'
+    return urlunsplit(parts._replace(scheme='postgresql+asyncpg', query=urlencode(query)))
+
 @dataclass
 class Settings:
-    database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///./sdr.db'))
+    database_url: str = field(default_factory=lambda: _normalize_database_url(os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///./sdr.db')))
     db_pool_size: int = field(default_factory=lambda: int(os.getenv('DB_POOL_SIZE', '5')))
     db_max_overflow: int = field(default_factory=lambda: int(os.getenv('DB_MAX_OVERFLOW', '10')))
     db_pool_timeout_seconds: int = field(default_factory=lambda: int(os.getenv('DB_POOL_TIMEOUT_SECONDS', '30')))
