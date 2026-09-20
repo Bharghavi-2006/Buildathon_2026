@@ -162,10 +162,10 @@ export const TopBar: React.FC = () => {
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-[#12152d] border border-purple-500/15 hover:border-purple-500/40 transition-all text-xs text-slate-200"
             >
               <div className="w-6 h-6 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-[10px] font-bold text-purple-200">
-                {currentUser?.user.name.charAt(0) || 'U'}
+                {currentUser?.user?.name?.charAt(0) || 'U'}
               </div>
               <div className="text-left">
-                <div className="font-semibold leading-none">{currentUser?.user.name || activeEmail}</div>
+                <div className="font-semibold leading-none">{currentUser?.user?.name || activeEmail}</div>
                 <div className="text-[10px] text-slate-400 leading-none mt-0.5">{activeEmail}</div>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />

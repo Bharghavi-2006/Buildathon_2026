@@ -7,7 +7,7 @@ export const Sidebar: React.FC = () => {
   const { role, currentUser } = useAuth();
 
   const isManager = role === 'MANAGER';
-  const displayName = currentUser?.user.name || 'Loading…';
+  const displayName = currentUser?.user?.name || 'Loading…';
 
   return (
     <aside className="w-56 bg-[#090b1a] border-r border-purple-500/10 flex flex-col justify-between p-4 h-screen sticky top-0 flex-shrink-0 z-20">
