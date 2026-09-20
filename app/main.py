@@ -264,7 +264,7 @@ async def representatives(db: AsyncSession=Depends(get_session), identity=Depend
 @app.post('/team/representatives')
 async def create_representative(data:RepresentativeProfileIn, db:AsyncSession=Depends(get_session), identity=Depends(require_manager)):
     if await db.scalar(select(User).where(User.email==data.email.lower())): raise HTTPException(409,'Email already exists')
-    user=User(name=data.name,email=data.email.lower()); db.add(user); await db.flush(); profile=AccessProfile(user_id=user.id,role='REPRESENTATIVE',max_active_leads=data.max_active_leads,specialties=data.specialties,regions=data.regions); db.add(profile); await db.commit(); return {'user':dump(user),'profile':dump(profile)}
+    user=User(name=data.name,email=data.email.lower()); db.add(user); await db.flush(); profile=AccessProfile(user_id=user.id,role='REPRESENTATIVE',max_active_leads=data.max_active_leads,specialties=data.specialties,regions=data.regions,supported_channels=data.supported_channels,timezone=data.timezone,working_hours=data.working_hours); db.add(profile); await db.commit(); return {'user':dump(user),'profile':dump(profile)}
 @app.get('/campaigns/{id}/representative-recommendations')
 async def representative_recommendations(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     campaign=await campaign_or_404(id,db); rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE',AccessProfile.active==True))).all(); ranked=[]
@@ -281,6 +281,7 @@ async def assign_campaign_representative(id:str,data:CampaignAssignmentIn,db:Asy
     existing=await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.representative_id==rep.id))
     if existing: existing.active=True; assignment=existing
     else: assignment=CampaignAssignment(campaign_id=id,representative_id=rep.id,assigned_by_id=identity[0].id); db.add(assignment)
+    assignment.daily_send_limit=data.daily_send_limit; assignment.assigned_lead_limit=data.assigned_lead_limit; assignment.working_hours=data.working_hours; assignment.routing_rule=data.routing_rule
     db.add(AuditLog(action='CAMPAIGN_ASSIGNED',entity_type='campaign',entity_id=campaign.id,details={'representative_id':rep.id})); await db.commit(); return dump(assignment)
 @app.post('/campaigns/{campaign_id}/prospects/{prospect_id}/assign')
 async def assign_lead(campaign_id:str,prospect_id:str,data:LeadAssignmentIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):

@@ -10,6 +10,7 @@ from app.discovery.service import DiscoveryService, DiscoveryProviderError
 from app.research.service import ResearchService
 from app.policy.engine import PolicyEngine
 from app.fitment.engine import ICPFitmentEngine
+from app.matching.engine import RepMatchEngine
 from app.core.config import settings
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
@@ -261,6 +262,21 @@ async def launch_checks(c,db):
 @router.get('/campaigns/{id}/launch-check')
 async def launch_check(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await campaign(id,db); checks=[{'key':k,'label':l,'passed':p} for k,l,p in await launch_checks(c,db)]; return {'ready':all(x['passed'] for x in checks),'checks':checks}
+@router.get('/campaigns/{campaign_id}/rep-matches')
+async def rep_matches(campaign_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Rank active representatives by deterministic configuration compatibility."""
+    c=await campaign(campaign_id,db)
+    channel_rows=(await db.scalars(select(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==c.id, CampaignChannelSettings.enabled==True))).all()
+    if channel_rows:
+        c.active_channels=[row.channel for row in channel_rows]
+    campaign_hours=next((row.working_hours for row in channel_rows if row.working_hours), {})
+    rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE', AccessProfile.active==True))).all()
+    engine=RepMatchEngine(); results=[]
+    for user, profile in rows:
+        current_load=await db.scalar(select(func.count()).select_from(LeadAssignment).where(LeadAssignment.representative_id==user.id, LeadAssignment.status=='ASSIGNED')) or 0
+        match=engine.evaluate(c, profile, current_load=current_load, campaign_working_hours=campaign_hours)
+        results.append({'representative_id':user.id, 'representative':out(user), **match})
+    return sorted(results, key=lambda item: (-item['score'], item['representative_id']))
 @router.post('/campaigns/{id}/activate')
 async def activate(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await campaign(id,db); check=await launch_check(id,db,identity)

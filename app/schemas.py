@@ -13,11 +13,18 @@ class QualificationResult(BaseModel): qualified: bool; score: float; reasons: li
 class OutreachDecision(BaseModel): should_contact: bool; channel: str; objective: str; message_angle: str; reasoning: str
 class PersonalizedOutreach(BaseModel): channel: str; subject: str; body: str; personalization_facts: list[str]; cta: str; reasoning: str
 class PolicyResult(BaseModel): allowed: bool; reason: str; rule: str; metadata: dict=Field(default_factory=dict)
-class CampaignAssignmentIn(BaseModel): representative_id: str
+class CampaignAssignmentIn(BaseModel):
+    representative_id: str
+    daily_send_limit: int|None=None
+    assigned_lead_limit: int|None=None
+    working_hours: dict=Field(default_factory=dict)
+    routing_rule: dict=Field(default_factory=dict)
 class LeadAssignmentIn(BaseModel): representative_id: str
 class ApprovalDecisionIn(BaseModel): approved: bool; note: str=''
 class BatchApprovalDecisionIn(ApprovalDecisionIn): approval_ids: list[str]
-class RepresentativeProfileIn(BaseModel): name: str; email: str; max_active_leads: int=20; specialties: list[str]=Field(default_factory=list); regions: list[str]=Field(default_factory=list)
+class RepresentativeProfileIn(BaseModel):
+    name: str; email: str; max_active_leads: int=20; specialties: list[str]=Field(default_factory=list); regions: list[str]=Field(default_factory=list)
+    supported_channels: list[str]=Field(default_factory=list); timezone: str=''; working_hours: dict=Field(default_factory=dict)
 class ManagerCampaignCreate(BaseModel): name: str; description: str=''
 class IdentityIn(BaseModel): name: str; description: str=''; owner_id: str
 class IcpIn(BaseModel): geography: str=''; target_roles: list[str]=Field(default_factory=list); industries: list[str]=Field(default_factory=list); company_size: dict=Field(default_factory=dict); revenue_range: dict=Field(default_factory=dict); funding_stage: list[str]=Field(default_factory=list); technologies: list[str]=Field(default_factory=list); exclusion_criteria: list[str]=Field(default_factory=list); reference_profiles: list[dict]=Field(default_factory=list); custom_criteria: dict=Field(default_factory=dict)
