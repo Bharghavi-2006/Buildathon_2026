@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, ShieldCheck, UserCheck, Bell, ChevronDown } from 'lucide-react';
 import { controlApi } from '../../api/control';
+import { campaignsApi } from '../../api/campaigns';
 import { useAuth, DEMO_ACCOUNTS } from '../../context/AuthContext';
 
 export const TopBar: React.FC = () => {
   const { currentUser, activeEmail, switchUser, role } = useAuth();
+  const navigate = useNavigate();
   const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
   const [killLoading, setKillLoading] = useState<boolean>(false);
   const [showSwitchModal, setShowSwitchModal] = useState<boolean>(false);
   const [showUserDropdown, setShowUserDropdown] = useState<boolean>(false);
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+
+  const { data: alerts = [] } = useQuery({
+    queryKey: ['manager-alerts'],
+    queryFn: campaignsApi.getAlerts,
+    enabled: role === 'MANAGER',
+    refetchInterval: 15000,
+  });
 
   const fetchKillSwitchStatus = async () => {
     try {
@@ -83,6 +95,62 @@ export const TopBar: React.FC = () => {
                 </>
               )}
             </button>
+          )}
+
+          {/* Notification Bell */}
+          {role === 'MANAGER' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-[#12152d] border border-purple-500/15 hover:border-purple-500/40 transition-all text-slate-300"
+              >
+                <Bell className="w-4 h-4" />
+                {alerts.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center border border-[#0a0c1b]">
+                    {alerts.length > 9 ? '9+' : alerts.length}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 bg-[#0e1022] border border-purple-500/20 rounded-xl shadow-2xl p-2 z-50 max-h-96 overflow-y-auto">
+                  <div className="px-3 py-2 border-b border-purple-500/10 mb-1 flex items-center justify-between">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-purple-300">
+                      Notifications
+                    </div>
+                    <div className="text-[10px] text-slate-400">{alerts.length} active</div>
+                  </div>
+                  {alerts.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-slate-500">
+                      No active alerts right now.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {alerts.slice(0, 8).map((a: any) => (
+                        <button
+                          key={a.id}
+                          onClick={() => {
+                            setShowNotifications(false);
+                            navigate('/');
+                          }}
+                          className="w-full text-left p-2.5 rounded-lg text-xs hover:bg-[#161a37] transition-colors flex items-start gap-2.5"
+                        >
+                          <ShieldAlert
+                            className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                              a.severity === 'HIGH' ? 'text-rose-400' : 'text-amber-400'
+                            }`}
+                          />
+                          <div>
+                            <div className="font-semibold text-slate-200">{a.type?.replace(/_/g, ' ')}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">{a.message}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="w-[1px] h-6 bg-purple-500/10" />

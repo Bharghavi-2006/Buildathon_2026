@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pause, Play, Users, Bot, Layers, MessageSquare, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Pause, Play, Users, Bot, Layers, MessageSquare, Loader2, Sparkles, AlertCircle, Send, Mail, Linkedin, Phone } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+
+const CHANNEL_ICON: Record<string, React.ElementType> = { email: Mail, linkedin: Linkedin, voice: Phone, message: MessageSquare };
 
 export const CampaignDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'prospects' | 'agents' | 'conversations'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'prospects' | 'team' | 'conversations' | 'agents'>('overview');
   const [demoRecipient, setDemoRecipient] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   const { data: campaign, isLoading: campLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -34,6 +37,37 @@ export const CampaignDetail: React.FC = () => {
     queryKey: ['campaign-agents', id],
     queryFn: () => campaignsApi.getCampaignAgents(id!),
     enabled: !!id,
+  });
+
+  const { data: channels = [] } = useQuery({
+    queryKey: ['campaign-channels', id],
+    queryFn: () => campaignsApi.getChannels(id!),
+    enabled: !!id,
+  });
+
+  const { data: team = [], isLoading: teamLoading } = useQuery({
+    queryKey: ['campaign-team', id],
+    queryFn: () => campaignsApi.getCampaignTeam(id!),
+    enabled: !!id && activeTab === 'team',
+  });
+
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
+    queryKey: ['campaign-conversations', id],
+    queryFn: () => campaignsApi.getCampaignConversations(id!),
+    enabled: !!id && activeTab === 'conversations',
+  });
+
+  const replyMutation = useMutation({
+    mutationFn: async ({ conversationId, content, channel }: { conversationId: string; content: string; channel: string }) => {
+      return await campaignsApi.sendConversationReply(conversationId, content, channel);
+    },
+    onSuccess: (_, { conversationId }) => {
+      setReplyDrafts((prev) => ({ ...prev, [conversationId]: '' }));
+      queryClient.invalidateQueries({ queryKey: ['campaign-conversations', id] });
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to send reply');
+    },
   });
 
   const togglePauseMutation = useMutation({
@@ -157,7 +191,9 @@ export const CampaignDetail: React.FC = () => {
         {[
           { id: 'overview', label: 'Funnel Overview', icon: Layers },
           { id: 'prospects', label: `Prospects (${prospects.length})`, icon: Users },
-          { id: 'agents', label: `Agents (${agents.length})`, icon: Bot },
+          { id: 'team', label: 'Team', icon: Users },
+          { id: 'conversations', label: 'Open Conversations', icon: MessageSquare },
+          { id: 'agents', label: `Agents & Channels (${agents.length})`, icon: Bot },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -285,7 +321,108 @@ export const CampaignDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: Agents */}
+      {/* Tab 3: Team — who's working this campaign and which prospect each rep is talking to */}
+      {activeTab === 'team' && (
+        <div className="space-y-4">
+          {teamLoading && <div className="text-sm text-slate-400">Loading team...</div>}
+          {!teamLoading && !team.length && (
+            <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-500 text-sm">
+              No representatives assigned to this campaign yet.
+            </div>
+          )}
+          {team.map((row) => (
+            <div key={row.representative.id} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600/40 to-indigo-700/40 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-200">
+                    {row.representative.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white text-sm">{row.representative.name}</div>
+                    <div className="text-xs text-slate-400">{row.representative.email}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {row.leads.length} prospect{row.leads.length === 1 ? '' : 's'} assigned
+                  {row.assignment.daily_send_limit != null && ` · limit ${row.assignment.daily_send_limit}/day`}
+                </div>
+              </div>
+              {row.leads.length === 0 ? (
+                <p className="text-xs text-slate-500">No prospects assigned to this rep yet.</p>
+              ) : (
+                <div className="divide-y divide-purple-500/5">
+                  {row.leads.map((lead) => (
+                    <div key={lead.prospect.id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-slate-200">{lead.prospect.first_name} {lead.prospect.last_name}</div>
+                        <div className="text-xs text-slate-500">{lead.prospect.title} · {lead.stage}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={lead.qualification_status} />
+                        {lead.conversation_status && <StatusBadge status={lead.conversation_status} />}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab 4: Open Conversations — every thread still mid-flow, replyable even while paused */}
+      {activeTab === 'conversations' && (
+        <div className="space-y-4">
+          {isPaused && (
+            <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              Campaign is paused — you can still finish these threads. No new prospects will enter this campaign until it resumes.
+            </div>
+          )}
+          {conversationsLoading && <div className="text-sm text-slate-400">Loading conversations...</div>}
+          {!conversationsLoading && !conversations.filter((c) => c.status === 'OPEN' || c.status === 'MEETING_INTENT').length && (
+            <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-500 text-sm">
+              No open conversations right now.
+            </div>
+          )}
+          {conversations.filter((c) => c.status === 'OPEN' || c.status === 'MEETING_INTENT').map((conv) => (
+            <div key={conv.id} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div>
+                  <div className="font-semibold text-white text-sm">
+                    {conv.prospect ? `${conv.prospect.first_name} ${conv.prospect.last_name}` : 'Prospect'}
+                  </div>
+                  <div className="text-xs text-slate-400">{conv.prospect?.title}</div>
+                </div>
+                <StatusBadge status={conv.status} />
+              </div>
+              {conv.last_message && (
+                <p className="text-sm text-slate-300 bg-[#070811] border border-purple-500/10 rounded-xl p-3 mb-3">
+                  {conv.last_message.content}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={replyDrafts[conv.id] || ''}
+                  onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [conv.id]: e.target.value }))}
+                  placeholder="Write a reply..."
+                  className="flex-1 px-3 py-2 bg-[#070811] border border-purple-500/20 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  onClick={() => replyMutation.mutate({ conversationId: conv.id, content: (replyDrafts[conv.id] || '').trim(), channel: conv.last_message?.channel || 'email' })}
+                  disabled={!replyDrafts[conv.id]?.trim() || replyMutation.isPending}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Reply
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab 5: Agents & Channels */}
       {activeTab === 'agents' && (
         <div className="space-y-4">
           <div className="text-xs text-slate-400 mb-2">
@@ -329,6 +466,32 @@ export const CampaignDetail: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+
+          <div className="pt-2">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Channel Status</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {channels.map((ch) => {
+                const Icon = CHANNEL_ICON[ch.channel] || MessageSquare;
+                return (
+                  <div key={ch.channel} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-950/60 border border-blue-500/40 text-blue-300">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-white text-sm capitalize">{ch.channel}</div>
+                        <div className="text-[11px] text-slate-400">Daily limit: {ch.daily_limit} · {ch.approval_required ? 'Approval required' : 'No approval required'}</div>
+                      </div>
+                    </div>
+                    <StatusBadge status={ch.enabled ? 'Active' : 'Paused'} />
+                  </div>
+                );
+              })}
+              {!channels.length && (
+                <div className="text-xs text-slate-500 md:col-span-2">No channels configured for this campaign.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -30,7 +30,7 @@ class IdentityIn(BaseModel): name: str; description: str=''; owner_id: str
 class IcpIn(BaseModel): geography: str=''; target_roles: list[str]=Field(default_factory=list); industries: list[str]=Field(default_factory=list); company_size: dict=Field(default_factory=dict); revenue_range: dict=Field(default_factory=dict); funding_stage: list[str]=Field(default_factory=list); technologies: list[str]=Field(default_factory=list); exclusion_criteria: list[str]=Field(default_factory=list); reference_profiles: list[dict]=Field(default_factory=list); custom_criteria: dict=Field(default_factory=dict)
 class AgentConfigIn(BaseModel): enabled: bool; responsibilities: list[str]=Field(default_factory=list); decision_thresholds: dict=Field(default_factory=dict); escalation_rules: dict=Field(default_factory=dict); prompt_version_id: str|None=None
 class ProspectImportIn(BaseModel): prospects: list[ProspectIn]
-class ProspectSelectIn(BaseModel): prospect_ids: list[str]
+class ProspectSelectIn(BaseModel): prospect_ids: list[str]; min_fit_score: float=Field(default=60,ge=0,le=100)
 class ChannelSettingsIn(BaseModel): channels: list[dict]
 class PromptIn(BaseModel): agent_type: str; prompt_text: str; configuration: dict=Field(default_factory=dict)
 class ApprovalEditIn(BaseModel): content: str
@@ -53,3 +53,6 @@ class DemoModeIn(BaseModel):
 class DemoReplyIn(BaseModel): message: str
 class HurdleResolveIn(BaseModel): note: str=''
 class HurdleKnowledgeIn(BaseModel): title: str; content: str
+class SuppressionIn(BaseModel): prospect_email: str; reason: str='Manual DNC entry'
+class NotificationThresholdsIn(BaseModel): approval_aging_threshold_hours: int=Field(ge=1,le=168); capacity_alert_threshold_pct: int=Field(ge=1,le=100)
+class ManagerCreateIn(BaseModel): name: str; email: str

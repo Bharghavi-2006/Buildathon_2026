@@ -43,6 +43,7 @@ export const SdrsRoster: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>(initialCampaignId);
   const [capacityFilter, setCapacityFilter] = useState<string>('all');
+  const [skillFilter, setSkillFilter] = useState<string>('all');
   const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -101,6 +102,11 @@ export const SdrsRoster: React.FC = () => {
     enabled: campaignFilter !== 'all',
   });
 
+  const { data: thresholds } = useQuery({
+    queryKey: ['notification-thresholds'],
+    queryFn: campaignsApi.getNotificationThresholds,
+  });
+
   // Map of repId -> RepMatchItem
   const repMatchesMap = useMemo(() => {
     const map = new Map<string, RepMatchItem>();
@@ -132,6 +138,8 @@ export const SdrsRoster: React.FC = () => {
         pending_approvals: mon?.pending_approvals ?? 0,
         aging_approvals: mon?.aging_approvals ?? 0,
         active_campaigns_count: rep.active_campaigns_count ?? 0,
+        active_agent_types: mon?.active_agent_types ?? [],
+        paused_agent_types: mon?.paused_agent_types ?? [],
         capacity,
         utilization,
         capacityState,
@@ -139,6 +147,12 @@ export const SdrsRoster: React.FC = () => {
       };
     });
   }, [reps, monitoringReps, repMatchesMap]);
+
+  const allSkills = useMemo(() => {
+    const set = new Set<string>();
+    augmentedReps.forEach((r) => (r.profile.specialties || []).forEach((s) => set.add(s)));
+    return Array.from(set).sort();
+  }, [augmentedReps]);
 
   // Compute KPI summary metrics
   const activeSDRs = augmentedReps.filter((r) => r.profile.active !== false).length;
@@ -152,6 +166,14 @@ export const SdrsRoster: React.FC = () => {
   const inactiveWithAssignments = useMemo(() => {
     return augmentedReps.filter((r) => r.profile.active === false && (r.active_leads > 0 || r.active_campaigns_count > 0));
   }, [augmentedReps]);
+
+  // Reps crossing the manager-configured capacity alert threshold (Settings > Notification Preferences)
+  const capacityThresholdPct = thresholds?.capacity_alert_threshold_pct ?? 90;
+  const overThresholdReps = useMemo(
+    () => augmentedReps.filter((r) => r.profile.active !== false && r.utilization >= capacityThresholdPct),
+    [augmentedReps, capacityThresholdPct]
+  );
+  const activeRepCount = augmentedReps.filter((r) => r.profile.active !== false).length;
 
   // Filtered reps
   const filteredReps = useMemo(() => {
@@ -176,9 +198,12 @@ export const SdrsRoster: React.FC = () => {
       // Capacity State
       const capacityMatch = capacityFilter === 'all' || r.capacityState === capacityFilter;
 
-      return searchMatch && statusMatch && channelMatch && capacityMatch;
+      // Skillset
+      const skillMatch = skillFilter === 'all' || (r.profile.specialties || []).includes(skillFilter);
+
+      return searchMatch && statusMatch && channelMatch && capacityMatch && skillMatch;
     });
-  }, [augmentedReps, searchQuery, statusFilter, channelFilter, capacityFilter]);
+  }, [augmentedReps, searchQuery, statusFilter, channelFilter, capacityFilter, skillFilter]);
 
   // Selected rep for drawer
   const selectedRep = augmentedReps.find((r) => r.user.id === selectedRepId);
@@ -227,7 +252,7 @@ export const SdrsRoster: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          Add Representative
+          + Add Outbound Agent
         </button>
       </div>
 
@@ -355,6 +380,33 @@ export const SdrsRoster: React.FC = () => {
         </div>
       )}
 
+      {/* Capacity Alert Banner — fires when any rep crosses the manager-configured load threshold */}
+      {overThresholdReps.length > 0 && (
+        <div className="p-4 bg-rose-950/30 border border-rose-500/30 rounded-2xl shadow-lg flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-rose-600/20 text-rose-400 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-rose-300 text-xs">
+                {overThresholdReps.length === activeRepCount && activeRepCount > 0
+                  ? `All reps are over ${capacityThresholdPct}% daily load`
+                  : `${overThresholdReps.length} of ${activeRepCount} reps are over ${capacityThresholdPct}% daily load`}
+              </div>
+              <div className="text-[11px] text-rose-200/80 mt-0.5">
+                {overThresholdReps.map((r) => r.user.name).join(', ')} — reallocate leads or raise limits before this becomes a bottleneck.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedRepId(overThresholdReps[0].user.id)}
+            className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded-xl transition-all"
+          >
+            Review Now
+          </button>
+        </div>
+      )}
+
       {/* Filter Bar */}
       <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
         {/* Search */}
@@ -421,6 +473,18 @@ export const SdrsRoster: React.FC = () => {
             <option value="AT_CAPACITY">At Capacity</option>
             <option value="OVER_CAPACITY">Over Capacity</option>
           </select>
+
+          {/* Skillset Filter */}
+          <select
+            value={skillFilter}
+            onChange={(e) => setSkillFilter(e.target.value)}
+            className="px-3 py-1.5 bg-[#070811] border border-purple-500/20 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 max-w-[160px]"
+          >
+            <option value="all">Skillset: All</option>
+            {allSkills.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -458,6 +522,7 @@ export const SdrsRoster: React.FC = () => {
                   <th className="py-3 px-3">Active Campaigns</th>
                   <th className="py-3 px-4">Current Load</th>
                   <th className="py-3 px-4">Specialization</th>
+                  <th className="py-3 px-4">Agents</th>
                   <th className="py-3 px-4">Capacity Status</th>
                   {campaignFilter !== 'all' && <th className="py-3 px-3">Match Fit</th>}
                   <th className="py-3 px-3 text-right">Actions</th>
@@ -585,6 +650,29 @@ export const SdrsRoster: React.FC = () => {
                             </span>
                           )}
                         </div>
+                      </td>
+
+                      {/* AI Agents in use across this rep's active campaigns */}
+                      <td className="py-3 px-4 max-w-[160px]">
+                        {rep.active_agent_types.length === 0 && rep.paused_agent_types.length === 0 ? (
+                          <span className="text-slate-500 text-[10px]">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {rep.active_agent_types.slice(0, 3).map((a) => (
+                              <span key={a} title={`${a} — active`} className="px-1.5 py-0.5 rounded bg-emerald-950/50 border border-emerald-500/30 text-emerald-300 text-[9px] font-semibold">
+                                {a.replace('_', ' ')}
+                              </span>
+                            ))}
+                            {rep.paused_agent_types.slice(0, 2).map((a) => (
+                              <span key={a} title={`${a} — paused`} className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-semibold">
+                                {a.replace('_', ' ')}
+                              </span>
+                            ))}
+                            {rep.active_agent_types.length + rep.paused_agent_types.length > 5 && (
+                              <span className="text-[9px] text-slate-500 self-center">+{rep.active_agent_types.length + rep.paused_agent_types.length - 5}</span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Capacity Status */}
