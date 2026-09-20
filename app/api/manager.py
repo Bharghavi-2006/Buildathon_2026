@@ -61,6 +61,9 @@ async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session)
     c=Campaign(name=data.name,description=data.description,status='DRAFT'); db.add(c); await db.flush(); db.add(CampaignSetup(campaign_id=c.id,owner_id=identity[0].id))
     for agent_type in ['DISCOVERY','ICP_FITMENT','RESEARCH','OUTREACH_STRATEGY','PERSONALIZATION','CONVERSATION','FOLLOW_UP','VOICE']: db.add(CampaignAgent(campaign_id=c.id,agent_type=agent_type,enabled=False))
     audit(db,'CAMPAIGN_CREATED','campaign',c.id); await db.commit(); return out(c)
+@router.get('/campaigns/{id}/identity')
+async def get_identity(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db); s=await setup_for(c,db); return {'id':c.id,'name':c.name,'description':c.description,'status':c.status,'owner_id':s.owner_id}
 @router.patch('/campaigns/{id}/identity')
 async def identity_config(id:str,data:IdentityIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await draft(id,db)
@@ -241,13 +244,14 @@ async def save_channels(id:str,data:ChannelSettingsIn,db:AsyncSession=Depends(ge
         if not row: row=CampaignChannelSettings(campaign_id=id,channel=name); db.add(row)
         row.enabled=bool(value.get('enabled',True)); row.daily_limit=int(value.get('daily_limit',25)); row.working_hours=value.get('working_hours',{}); row.approval_required=bool(value.get('approval_required',False))
     c.active_channels=[x.channel for x in (await db.scalars(select(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==id,CampaignChannelSettings.enabled==True))).all()]
+    c.approval_required=any(bool(value.get('approval_required', False)) for value in data.channels if bool(value.get('enabled', True)))
     audit(db,'CHANNELS_UPDATED','campaign',id); await db.commit(); return await channels(id,db,identity)
 @router.get('/campaigns/{id}/prompts')
 async def prompts(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await campaign(id,db); return [out(x) for x in (await db.scalars(select(PromptVersion).where(PromptVersion.configuration['campaign_id'].as_string()==id))).all()]
 @router.post('/campaigns/{id}/prompts')
 async def create_prompt(id:str,data:PromptIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    await draft(id,db); count=await db.scalar(select(func.count()).select_from(PromptVersion).where(PromptVersion.agent_type==data.agent_type)) or 0; config={**data.configuration,'campaign_id':id,'created_by':identity[0].id}; p=PromptVersion(agent_type=data.agent_type,version=f'1.{count}.0',prompt_text=data.prompt_text,configuration=config,active=False); db.add(p); audit(db,'PROMPT_CREATED','prompt',p.id); await db.commit(); return out(p)
+    await draft(id,db); count=await db.scalar(select(func.count()).select_from(PromptVersion).where(PromptVersion.agent_type==data.agent_type)) or 0; config={**data.configuration,'campaign_id':id,'created_by':identity[0].id}; p=PromptVersion(agent_type=data.agent_type,version=f'1.{count}.0',prompt_text=data.prompt_text,configuration=config,active=False); db.add(p); await db.flush(); audit(db,'PROMPT_CREATED','prompt',p.id); await db.commit(); return out(p)
 @router.post('/campaigns/{id}/prompts/{prompt_id}/activate')
 async def activate_prompt(id:str,prompt_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); p=await db.get(PromptVersion,prompt_id)
@@ -257,8 +261,15 @@ async def activate_prompt(id:str,prompt_id:str,db:AsyncSession=Depends(get_sessi
     audit(db,'PROMPT_ACTIVATED','prompt',p.id); await db.commit(); return out(p)
 async def launch_checks(c,db):
     setup=await setup_for(c,db); agents=await db.scalar(select(func.count()).select_from(CampaignAgent).where(CampaignAgent.campaign_id==c.id,CampaignAgent.enabled==True)) or 0; prospects=(await db.scalars(select(CampaignProspect).where(CampaignProspect.campaign_id==c.id))).all(); channels=await db.scalar(select(func.count()).select_from(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==c.id,CampaignChannelSettings.enabled==True)) or 0; prompts_count=await db.scalar(select(func.count()).select_from(PromptVersion).where(PromptVersion.configuration['campaign_id'].as_string()==c.id,PromptVersion.active==True)) or 0; reps=await db.scalar(select(func.count()).select_from(CampaignAssignment).where(CampaignAssignment.campaign_id==c.id,CampaignAssignment.active==True)) or 0
-    conflicts=any((await fit(db,c,await db.get(Prospect,cp.prospect_id)))['suppressed'] or any(x['blocking'] for x in (await fit(db,c,await db.get(Prospect,cp.prospect_id)))['conflicts']) for cp in prospects)
-    return [('identity','Campaign identity configured',bool(c.name and setup.owner_id)),('icp','ICP configured',bool(c.target_roles or c.target_industries)),('agents','At least one agent enabled',bool(agents)),('prospects','Prospects sourced and approved',bool(prospects)),('channels','At least one channel enabled',bool(channels)),('prompts','At least one prompt reviewed',bool(prompts_count)),('representative','Representative assigned',bool(reps)),('conflicts','No blocking suppression/conflict state',not conflicts),('draft','Campaign is currently DRAFT',c.status=='DRAFT')]
+    has_conflicts = False
+    for cp in prospects:
+        p = await db.get(Prospect, cp.prospect_id)
+        if p:
+            assessment = await fit(db, c, p)
+            if assessment['suppressed'] or any(x['blocking'] for x in assessment['conflicts']):
+                has_conflicts = True
+                break
+    return [('identity','Campaign identity configured',bool(c.name and setup.owner_id)),('icp','ICP configured',bool(c.target_roles or c.target_industries)),('agents','At least one agent enabled',bool(agents)),('prospects','Prospects sourced and approved',bool(prospects)),('channels','At least one channel enabled',bool(channels)),('prompts','At least one prompt reviewed',bool(prompts_count)),('representative','Representative assigned',bool(reps)),('conflicts','No blocking suppression/conflict state',not has_conflicts),('draft','Campaign is currently DRAFT',c.status=='DRAFT')]
 @router.get('/campaigns/{id}/launch-check')
 async def launch_check(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await campaign(id,db); checks=[{'key':k,'label':l,'passed':p} for k,l,p in await launch_checks(c,db)]; return {'ready':all(x['passed'] for x in checks),'checks':checks}
@@ -277,6 +288,12 @@ async def rep_matches(campaign_id:str,db:AsyncSession=Depends(get_session),ident
         match=engine.evaluate(c, profile, current_load=current_load, campaign_working_hours=campaign_hours)
         results.append({'representative_id':user.id, 'representative':out(user), **match})
     return sorted(results, key=lambda item: (-item['score'], item['representative_id']))
+@router.patch('/campaigns/{id}/representatives-config')
+async def save_rep_config(id:str,data:dict,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await draft(id,db); s=await setup_for(c,db); s.representative_settings=data; await db.commit(); return s.representative_settings or {}
+@router.get('/campaigns/{id}/representatives-config')
+async def get_rep_config(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db); s=await setup_for(c,db); return s.representative_settings or {}
 @router.post('/campaigns/{id}/activate')
 async def activate(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=await campaign(id,db); check=await launch_check(id,db,identity)

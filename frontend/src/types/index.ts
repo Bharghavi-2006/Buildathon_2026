@@ -12,6 +12,9 @@ export interface AccessProfile {
   max_active_leads: number;
   specialties: string[];
   regions: string[];
+  supported_channels?: string[];
+  timezone?: string;
+  working_hours?: Record<string, any>;
   active: boolean;
 }
 
@@ -275,3 +278,111 @@ export interface KnowledgeDocument {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface CampaignIdentity {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  owner_id?: string;
+}
+
+export interface ManagerUserItem {
+  user: User;
+  profile: AccessProfile;
+}
+
+export interface IcpConfig {
+  geography: string;
+  target_roles: string[];
+  industries: string[];
+  company_size: { min?: number; max?: number };
+  revenue_range?: Record<string, any>;
+  funding_stage?: string[];
+  technologies?: string[];
+  exclusion_criteria?: string[];
+  reference_profiles?: any[];
+  custom_criteria?: Record<string, any>;
+}
+
+export interface DiscoveryConflict {
+  campaign_id: string;
+  campaign_name: string;
+  status: string;
+  last_contacted_at?: string | null;
+  blocking: boolean;
+}
+
+export interface DiscoveryCandidate {
+  prospect_id?: string;
+  source_id?: string;
+  name: string;
+  title: string;
+  company?: string;
+  fit_score: number;
+  fit_reasons: string[];
+  matched_criteria?: string[];
+  unmatched_criteria?: string[];
+  confidence?: string;
+  source?: string;
+  duplicate?: boolean;
+  conflict?: boolean;
+  conflicts?: DiscoveryConflict[];
+  suppressed?: boolean;
+  valid?: boolean;
+  reason?: string;
+}
+
+export interface DiscoveryResponse {
+  run_id: string;
+  batch_id: string;
+  status: string;
+  dronahq_execution_id?: string;
+  total_found: number;
+  search_summary: string;
+  prospects: DiscoveryCandidate[];
+}
+
+export interface RepMatchItem {
+  representative_id: string;
+  representative: User;
+  score: number;
+  breakdown: {
+    icp_fit: number;
+    geography_fit: number;
+    channel_fit: number;
+    capacity: number;
+    specialization: number;
+    working_hours: number;
+  };
+  reasons: string[];
+  warnings: string[];
+  capacity: {
+    current_load: number;
+    capacity: number;
+    utilization_percentage: number;
+  };
+}
+
+export interface CampaignAssignmentItem {
+  assignment: {
+    id: string;
+    campaign_id: string;
+    representative_id: string;
+    assigned_by_id: string;
+    daily_send_limit?: number;
+    assigned_lead_limit?: number;
+    working_hours?: Record<string, any>;
+    routing_rule?: Record<string, any>;
+    active: boolean;
+    created_at?: string;
+  };
+  user: User;
+}
+
+export interface CampaignRepConfig {
+  routing_strategy?: 'round_robin' | 'stage_split';
+  rep_limits?: Record<string, { daily_send_limit?: number; assigned_lead_limit?: number }>;
+  [key: string]: any;
+}
+

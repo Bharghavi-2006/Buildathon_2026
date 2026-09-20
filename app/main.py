@@ -60,6 +60,28 @@ async def patch_campaign(id:str,data:CampaignIn,db:AsyncSession=Depends(get_sess
     x=await campaign_or_404(id,db)
     for k,v in data.model_dump().items(): setattr(x,k,v)
     await db.commit(); return dump(x)
+@app.get('/campaigns/{id}/representatives')
+async def campaign_representatives(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign_or_404(id,db)
+    rows=(await db.execute(select(CampaignAssignment,User).join(User,CampaignAssignment.representative_id==User.id).where(CampaignAssignment.campaign_id==id,CampaignAssignment.active==True))).all()
+    return [{'assignment':dump(a),'user':dump(u)} for a,u in rows]
+@app.delete('/campaigns/{id}/representatives/{rep_id}')
+async def remove_campaign_representative(id:str,rep_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign_or_404(id,db)
+    assignment=await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.representative_id==rep_id))
+    if assignment:
+        assignment.active=False
+        await db.commit()
+    return {'status':'removed'}
+@app.post('/campaigns/{id}/representatives')
+async def assign_campaign_representative(id:str,data:CampaignAssignmentIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    campaign=await campaign_or_404(id,db); rep=await db.get(User,data.representative_id); profile=await db.scalar(select(AccessProfile).where(AccessProfile.user_id==data.representative_id,AccessProfile.role=='REPRESENTATIVE'))
+    if not rep or not profile: raise HTTPException(422,'Representative not found')
+    existing=await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.representative_id==rep.id))
+    if existing: existing.active=True; assignment=existing
+    else: assignment=CampaignAssignment(campaign_id=id,representative_id=rep.id,assigned_by_id=identity[0].id); db.add(assignment)
+    assignment.daily_send_limit=data.daily_send_limit; assignment.assigned_lead_limit=data.assigned_lead_limit; assignment.working_hours=data.working_hours; assignment.routing_rule=data.routing_rule
+    db.add(AuditLog(action='CAMPAIGN_ASSIGNED',entity_type='campaign',entity_id=campaign.id,details={'representative_id':rep.id})); await db.commit(); return dump(assignment)
 @app.post('/campaigns/{id}/{action}')
 async def lifecycle(id:str,action:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     statuses={'pause':'PAUSED','resume':'LIVE','complete':'COMPLETED'}
@@ -254,6 +276,10 @@ async def kill_switch(identity=Depends(require_manager)): settings().global_kill
 async def reset_kill_switch(identity=Depends(require_manager)): settings().global_kill_switch=False; return {'global_kill_switch':False}
 
 # Manager workspace: team assignment, matching, approvals, and monitoring.
+@app.get('/team/managers')
+async def team_managers(db: AsyncSession=Depends(get_session), identity=Depends(require_manager)):
+    rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='MANAGER'))).all()
+    return [{'user':dump(user),'profile':dump(profile)} for user,profile in rows]
 @app.get('/team/representatives')
 async def representatives(db: AsyncSession=Depends(get_session), identity=Depends(require_manager)):
     rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE'))).all(); result=[]
@@ -274,15 +300,6 @@ async def representative_recommendations(id:str,db:AsyncSession=Depends(get_sess
         expertise=len(terms & {x.lower() for x in profile.specialties}); region=1 if campaign.target_geography.lower() in {x.lower() for x in profile.regions} else 0; capacity=max(0,profile.max_active_leads-active)
         ranked.append({'representative':dump(user),'score':expertise*50+region*25+min(capacity,25),'reasons':{'specialty_matches':expertise,'region_match':bool(region),'available_capacity':capacity}})
     return sorted(ranked,key=lambda x:x['score'],reverse=True)
-@app.post('/campaigns/{id}/representatives')
-async def assign_campaign_representative(id:str,data:CampaignAssignmentIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    campaign=await campaign_or_404(id,db); rep=await db.get(User,data.representative_id); profile=await db.scalar(select(AccessProfile).where(AccessProfile.user_id==data.representative_id,AccessProfile.role=='REPRESENTATIVE'))
-    if not rep or not profile: raise HTTPException(422,'Representative not found')
-    existing=await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.representative_id==rep.id))
-    if existing: existing.active=True; assignment=existing
-    else: assignment=CampaignAssignment(campaign_id=id,representative_id=rep.id,assigned_by_id=identity[0].id); db.add(assignment)
-    assignment.daily_send_limit=data.daily_send_limit; assignment.assigned_lead_limit=data.assigned_lead_limit; assignment.working_hours=data.working_hours; assignment.routing_rule=data.routing_rule
-    db.add(AuditLog(action='CAMPAIGN_ASSIGNED',entity_type='campaign',entity_id=campaign.id,details={'representative_id':rep.id})); await db.commit(); return dump(assignment)
 @app.post('/campaigns/{campaign_id}/prospects/{prospect_id}/assign')
 async def assign_lead(campaign_id:str,prospect_id:str,data:LeadAssignmentIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await campaign_or_404(campaign_id,db); cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==campaign_id,CampaignProspect.prospect_id==prospect_id)); profile=await db.scalar(select(AccessProfile).where(AccessProfile.user_id==data.representative_id,AccessProfile.role=='REPRESENTATIVE'))

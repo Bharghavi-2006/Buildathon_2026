@@ -4,6 +4,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { Dashboard } from '../pages/manager/Dashboard';
 import { CampaignDetail } from '../pages/manager/CampaignDetail';
 import { ProspectDetail } from '../pages/manager/ProspectDetail';
+import { NewCampaign } from '../pages/manager/NewCampaign';
 
 export const router = createBrowserRouter([
   {
@@ -51,12 +52,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'campaigns/new',
-        element: (
-          <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-400">
-            <h2 className="text-xl font-bold text-white mb-2">New Campaign Wizard</h2>
-            <p className="text-sm">7-step campaign creation wizard will be loaded in the next vertical slice.</p>
-          </div>
-        ),
+        element: <NewCampaign />,
+      },
+      {
+        path: 'manager/campaigns/new',
+        element: <NewCampaign />,
       },
       {
         path: 'rep/*',

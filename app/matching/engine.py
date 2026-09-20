@@ -143,8 +143,8 @@ class RepMatchEngine:
             else:
                 warnings.append(f"Timezone differs: campaign {campaign_timezone}, representative {rep_timezone}")
 
-        requested_channels = {_channel(value) for value in getattr(campaign, "active_channels", [])}
-        supported_channels = {_channel(value) for value in getattr(profile, "supported_channels", [])}
+        requested_channels = {_channel(value) for value in (getattr(campaign, "active_channels", []) or [])}
+        supported_channels = {_channel(value) for value in (getattr(profile, "supported_channels", []) or [])}
         matched_channels = requested_channels & supported_channels
         if not requested_channels:
             breakdown["channel_fit"] = 0
