@@ -1,0 +1,31 @@
+databases:
+  - name: autonomous-sdr-db
+    plan: free
+    databaseName: autonomous_sdr
+    user: autonomous_sdr
+
+services:
+  - type: web
+    name: autonomous-sdr-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python -m alembic upgrade head
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: autonomous-sdr-db
+          property: connectionString
+      - key: DEMO_MODE
+        value: "true"
+      - key: GLOBAL_KILL_SWITCH
+        value: "false"
+      - key: APPROVAL_AGING_THRESHOLD_HOURS
+        value: "24"
+      # Set this to your deployed frontend's origin(s), comma-separated, no
+      # trailing slash — e.g. https://your-app.vercel.app. Left blank on
+      # first deploy since Render provisions this service before you know
+      # the frontend's URL; update it once the frontend is live.
+      - key: CORS_ORIGINS
+        sync: false
