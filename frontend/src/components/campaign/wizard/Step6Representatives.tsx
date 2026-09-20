@@ -13,7 +13,9 @@ import {
   Send,
   GitFork,
   Check,
+  ExternalLink,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { campaignsApi } from '../../../api/campaigns';
 import { RepresentativeItem, RepMatchItem } from '../../../types';
 
@@ -202,11 +204,23 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Assign Representatives & Capacity</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Review SDR matching scores, active capacity loads, and configure campaign routing rules.
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-white tracking-tight">Assign Representatives & Capacity</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Review SDR matching scores, active capacity loads, and configure campaign routing rules.
+          </p>
+        </div>
+        <Link
+          to={`/manager/sdrs?campaign=${campaignId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#070811] hover:bg-[#12152d] border border-purple-500/20 text-purple-300 rounded-xl text-xs font-semibold transition-all"
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>View Team SDR Roster</span>
+          <ExternalLink className="w-3 h-3 text-slate-500" />
+        </Link>
       </div>
 
       {successMessage && (

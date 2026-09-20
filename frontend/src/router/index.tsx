@@ -5,6 +5,7 @@ import { Dashboard } from '../pages/manager/Dashboard';
 import { CampaignDetail } from '../pages/manager/CampaignDetail';
 import { ProspectDetail } from '../pages/manager/ProspectDetail';
 import { NewCampaign } from '../pages/manager/NewCampaign';
+import { SdrsRoster } from '../pages/manager/SdrsRoster';
 
 export const router = createBrowserRouter([
   {
@@ -24,13 +25,16 @@ export const router = createBrowserRouter([
         element: <ProspectDetail />,
       },
       {
+        path: 'manager/sdrs',
+        element: <SdrsRoster />,
+      },
+      {
+        path: 'sdrs',
+        element: <SdrsRoster />,
+      },
+      {
         path: 'reps',
-        element: (
-          <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-400">
-            <h2 className="text-xl font-bold text-white mb-2">SDRs Team Management</h2>
-            <p className="text-sm">Team capacity, SLAs, and channel allocations view will be loaded in the next vertical slice.</p>
-          </div>
-        ),
+        element: <SdrsRoster />,
       },
       {
         path: 'monitoring',

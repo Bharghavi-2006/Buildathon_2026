@@ -182,6 +182,9 @@ export interface RepresentativeItem {
   active_leads: number;
   available_capacity: number;
   outreach_sent?: number;
+  active_campaigns_count?: number;
+  pending_approvals?: number;
+  aging_approvals?: number;
 }
 
 export interface CampaignAgentItem {
@@ -385,4 +388,52 @@ export interface CampaignRepConfig {
   rep_limits?: Record<string, { daily_send_limit?: number; assigned_lead_limit?: number }>;
   [key: string]: any;
 }
+
+export interface RepresentativeCampaignAssignment {
+  campaign: {
+    id: string;
+    name: string;
+    status: string;
+    active_channels?: string[];
+    daily_outreach_limit?: number;
+    description?: string;
+  };
+  assignment: {
+    id: string;
+    campaign_id: string;
+    representative_id: string;
+    daily_send_limit?: number;
+    assigned_lead_limit?: number;
+    working_hours?: Record<string, any>;
+    routing_rule?: Record<string, any>;
+    active: boolean;
+    created_at?: string;
+  };
+  assigned_lead_count: number;
+}
+
+export interface RepresentativeDetailResponse {
+  user: User;
+  profile: AccessProfile;
+  active_leads: number;
+  available_capacity: number;
+  outreach_sent: number;
+  campaign_assignments: RepresentativeCampaignAssignment[];
+  approvals: {
+    pending_count: number;
+    aging_count: number;
+  };
+}
+
+export interface CreateRepresentativePayload {
+  name: string;
+  email: string;
+  max_active_leads: number;
+  specialties: string[];
+  regions: string[];
+  supported_channels: string[];
+  timezone: string;
+  working_hours?: Record<string, any>;
+}
+
 

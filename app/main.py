@@ -285,12 +285,80 @@ async def representatives(db: AsyncSession=Depends(get_session), identity=Depend
     rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE'))).all(); result=[]
     for user,profile in rows:
         active=await db.scalar(select(func.count()).select_from(LeadAssignment).where(LeadAssignment.representative_id==user.id,LeadAssignment.status=='ASSIGNED')) or 0
-        result.append({'user':dump(user),'profile':dump(profile),'active_leads':active,'available_capacity':max(0,profile.max_active_leads-active)})
+        camp_count=await db.scalar(select(func.count()).select_from(CampaignAssignment).where(CampaignAssignment.representative_id==user.id,CampaignAssignment.active==True)) or 0
+        result.append({'user':dump(user),'profile':dump(profile),'active_leads':active,'available_capacity':max(0,profile.max_active_leads-active),'active_campaigns_count':camp_count})
     return result
 @app.post('/team/representatives')
 async def create_representative(data:RepresentativeProfileIn, db:AsyncSession=Depends(get_session), identity=Depends(require_manager)):
     if await db.scalar(select(User).where(User.email==data.email.lower())): raise HTTPException(409,'Email already exists')
     user=User(name=data.name,email=data.email.lower()); db.add(user); await db.flush(); profile=AccessProfile(user_id=user.id,role='REPRESENTATIVE',max_active_leads=data.max_active_leads,specialties=data.specialties,regions=data.regions,supported_channels=data.supported_channels,timezone=data.timezone,working_hours=data.working_hours); db.add(profile); await db.commit(); return {'user':dump(user),'profile':dump(profile)}
+@app.get('/team/representatives/{id}')
+async def representative_detail(id:str, db:AsyncSession=Depends(get_session), identity=Depends(require_manager)):
+    user = await db.get(User, id)
+    if not user: raise HTTPException(404, 'Representative not found')
+    profile = await db.scalar(select(AccessProfile).where(AccessProfile.user_id==id, AccessProfile.role=='REPRESENTATIVE'))
+    if not profile: raise HTTPException(404, 'Representative profile not found')
+    active = await db.scalar(select(func.count()).select_from(LeadAssignment).where(LeadAssignment.representative_id==id, LeadAssignment.status=='ASSIGNED')) or 0
+    lead_counts_query = await db.execute(
+        select(CampaignProspect.campaign_id, func.count())
+        .select_from(LeadAssignment)
+        .join(CampaignProspect, LeadAssignment.campaign_prospect_id==CampaignProspect.id)
+        .where(LeadAssignment.representative_id==id, LeadAssignment.status=='ASSIGNED')
+        .group_by(CampaignProspect.campaign_id)
+    )
+    leads_by_camp = {camp_id: count for camp_id, count in lead_counts_query.all()}
+    assignments = (await db.execute(
+        select(CampaignAssignment, Campaign)
+        .join(Campaign, CampaignAssignment.campaign_id==Campaign.id)
+        .where(CampaignAssignment.representative_id==id)
+    )).all()
+    camp_assignments = []
+    for ca, camp in assignments:
+        camp_assignments.append({
+            'campaign': dump(camp),
+            'assignment': dump(ca),
+            'assigned_lead_count': leads_by_camp.get(camp.id, 0),
+        })
+    threshold = datetime.utcnow() - timedelta(hours=settings().approval_aging_threshold_hours)
+    pending_approvals = await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==id, ApprovalRequest.status=='PENDING')) or 0
+    aging_approvals = await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==id, ApprovalRequest.status=='PENDING', ApprovalRequest.created_at < threshold)) or 0
+    lead_prospect_ids = (await db.scalars(
+        select(CampaignProspect.prospect_id)
+        .select_from(LeadAssignment)
+        .join(CampaignProspect, LeadAssignment.campaign_prospect_id==CampaignProspect.id)
+        .where(LeadAssignment.representative_id==id)
+    )).all()
+    outreach_sent = 0
+    if lead_prospect_ids:
+        outreach_sent = await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.prospect_id.in_(lead_prospect_ids), OutreachEvent.status=='SENT')) or 0
+    return {
+        'user': dump(user),
+        'profile': dump(profile),
+        'active_leads': active,
+        'available_capacity': max(0, profile.max_active_leads - active),
+        'outreach_sent': outreach_sent,
+        'campaign_assignments': camp_assignments,
+        'approvals': {
+            'pending_count': pending_approvals,
+            'aging_count': aging_approvals,
+        }
+    }
+@app.patch('/team/representatives/{id}')
+async def update_representative(id:str, data:dict, db:AsyncSession=Depends(get_session), identity=Depends(require_manager)):
+    user = await db.get(User, id)
+    if not user: raise HTTPException(404, 'Representative not found')
+    profile = await db.scalar(select(AccessProfile).where(AccessProfile.user_id==id, AccessProfile.role=='REPRESENTATIVE'))
+    if not profile: raise HTTPException(404, 'Representative profile not found')
+    if 'name' in data and str(data['name']).strip(): user.name = str(data['name']).strip()
+    if 'max_active_leads' in data: profile.max_active_leads = int(data['max_active_leads'])
+    if 'specialties' in data: profile.specialties = data['specialties']
+    if 'regions' in data: profile.regions = data['regions']
+    if 'supported_channels' in data: profile.supported_channels = data['supported_channels']
+    if 'timezone' in data: profile.timezone = data['timezone']
+    if 'working_hours' in data: profile.working_hours = data['working_hours']
+    if 'active' in data: profile.active = bool(data['active'])
+    await db.commit()
+    return {'user': dump(user), 'profile': dump(profile)}
 @app.get('/campaigns/{id}/representative-recommendations')
 async def representative_recommendations(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     campaign=await campaign_or_404(id,db); rows=(await db.execute(select(User,AccessProfile).join(AccessProfile).where(AccessProfile.role=='REPRESENTATIVE',AccessProfile.active==True))).all(); ranked=[]
@@ -332,9 +400,12 @@ async def configure_channel(id:str,channel:str,data:ControlIn,db:AsyncSession=De
 @app.get('/monitoring/representatives')
 async def representative_monitoring(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     reps=await representatives(db,identity); events=(await db.scalars(select(OutreachEvent))).all()
+    threshold = datetime.utcnow() - timedelta(hours=settings().approval_aging_threshold_hours)
     for rep in reps:
         ids=(await db.scalars(select(LeadAssignment.campaign_prospect_id).where(LeadAssignment.representative_id==rep['user']['id']))).all(); prospect_ids=(await db.scalars(select(CampaignProspect.prospect_id).where(CampaignProspect.id.in_(ids)))).all() if ids else []
         rep['outreach_sent']=sum(e.status=='SENT' and e.prospect_id in prospect_ids for e in events)
+        rep['pending_approvals']=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==rep['user']['id'], ApprovalRequest.status=='PENDING')) or 0
+        rep['aging_approvals']=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==rep['user']['id'], ApprovalRequest.status=='PENDING', ApprovalRequest.created_at < threshold)) or 0
     return reps
 
 # Representative workspace: everything is filtered through lead/campaign assignments.

@@ -181,6 +181,9 @@ async def seed(db):
     db.add(LeadAssignment(campaign_prospect_id=cp_c1.id, representative_id=reps[0].id, assigned_by_id=manager.id, status='ASSIGNED'))
     db.add(LeadAssignment(campaign_prospect_id=cp_c2.id, representative_id=reps[0].id, assigned_by_id=manager.id, status='ASSIGNED'))
     db.add(LeadAssignment(campaign_prospect_id=cp_c3.id, representative_id=reps[0].id, assigned_by_id=manager.id, status='ASSIGNED'))
+    db.add(CampaignAssignment(campaign_id=camp_a.id, representative_id=reps[0].id, assigned_by_id=manager.id, daily_send_limit=25, active=True))
+    db.add(CampaignAssignment(campaign_id=camp_c.id, representative_id=reps[0].id, assigned_by_id=manager.id, daily_send_limit=25, active=True))
+    db.add(CampaignAssignment(campaign_id=camp_b.id, representative_id=reps[1].id, assigned_by_id=manager.id, daily_send_limit=20, active=True))
     await db.flush()
 
     # 6. OPEN CONVERSATIONS for Campaign B (as specifically required by Prompt)
