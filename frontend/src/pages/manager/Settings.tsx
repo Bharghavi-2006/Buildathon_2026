@@ -229,10 +229,10 @@ export const Settings: React.FC = () => {
             {managers.filter((m) => m.profile.active).map((m) => (
               <div key={m.user.id} className="flex items-center justify-between py-2.5 text-xs">
                 <div>
-                  <div className="text-slate-200 font-medium">{m.user.name}{m.user.id === currentUser?.user.id && <span className="text-purple-400 ml-1.5">(you)</span>}</div>
+                  <div className="text-slate-200 font-medium">{m.user.name}{m.user.id === currentUser?.user?.id && <span className="text-purple-400 ml-1.5">(you)</span>}</div>
                   <div className="text-slate-500">{m.user.email}</div>
                 </div>
-                {m.user.id !== currentUser?.user.id && (
+                {m.user.id !== currentUser?.user?.id && (
                   <button
                     onClick={() => revokeMutation.mutate(m.user.id)}
                     disabled={revokeMutation.isPending}

@@ -41,6 +41,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveUserEmail(email);
       setActiveEmail(email);
       const data = await authApi.getMe();
+      // A misconfigured API base URL (or a backend that's down) can still resolve to a
+      // 200 response — e.g. the SPA's own index.html — that isn't shaped like a identity
+      // payload. Treat anything without a user/role as a failed identity fetch rather than
+      // trusting it, so the rest of the app never has to guard against a malformed shape.
+      if (!data || !data.user || !data.role) {
+        throw new Error('Received an unexpected response while loading your identity.');
+      }
       setCurrentUser(data);
     } catch (err: any) {
       setError(err.message || 'Failed to authenticate user');
