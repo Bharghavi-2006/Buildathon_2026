@@ -7,6 +7,8 @@ import { ProspectDetail } from '../pages/manager/ProspectDetail';
 import { NewCampaign } from '../pages/manager/NewCampaign';
 import { SdrsRoster } from '../pages/manager/SdrsRoster';
 import { RepresentativeWorkspace } from '../pages/representative/Workspace';
+import { RepresentativeHurdles } from '../pages/representative/Hurdles';
+import { RepresentativeGuardrails } from '../pages/representative/Guardrails';
 import { Home } from '../pages/Home';
 
 export const router = createBrowserRouter([
@@ -64,6 +66,8 @@ export const router = createBrowserRouter([
         path: 'manager/campaigns/new',
         element: <NewCampaign />,
       },
+      { path: 'rep/hurdles', element: <RepresentativeHurdles /> },
+      { path: 'rep/guardrails', element: <RepresentativeGuardrails /> },
       { path: 'rep/*', element: <RepresentativeWorkspace /> },
       {
         path: '*',
