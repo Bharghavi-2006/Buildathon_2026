@@ -2,23 +2,32 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import settings
 from app.db.models import Base
-engine = create_async_engine(settings().database_url, future=True)
+def _engine_options() -> dict:
+    """Keep database construction in one place and avoid pooling SQLite files."""
+    config=settings()
+    if config.database_url.startswith('sqlite'):
+        return {'future': True}
+    return {'future': True, 'pool_pre_ping': True, 'pool_size': config.db_pool_size, 'max_overflow': config.db_max_overflow, 'pool_timeout': config.db_pool_timeout_seconds}
+
+engine = create_async_engine(settings().database_url, **_engine_options())
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 async def get_session():
     async with SessionLocal() as session: yield session
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # The demo deployment predates Alembic and keeps a SQLite file between
-        # runs.  Apply these additive columns so existing local rosters remain
-        # usable; production databases should apply equivalent DDL via their
-        # normal migration process.
-        if engine.dialect.name == 'sqlite':
+    # SQLite remains zero-setup local development. PostgreSQL schemas are
+    # exclusively managed by Alembic (run `python -m alembic upgrade head`).
+    if engine.dialect.name == 'sqlite':
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
             await _apply_sqlite_additive_schema(conn)
-        # A demo deployment must not leave pre-existing campaigns capable of
-        # non-demo delivery merely because they were created before this flag.
-        if settings().demo_mode:
-            await conn.execute(text('UPDATE campaigns SET demo_mode = 1'))
+            if settings().demo_mode:
+                await conn.execute(text('UPDATE campaigns SET demo_mode = 1'))
+        return
+    async with engine.connect() as conn:
+        try:
+            await conn.execute(text('SELECT version_num FROM alembic_version LIMIT 1'))
+        except Exception as exc:
+            raise RuntimeError('PostgreSQL schema is not migrated. Run `python -m alembic upgrade head` before starting the API.') from exc
 
 
 async def _apply_sqlite_additive_schema(conn):

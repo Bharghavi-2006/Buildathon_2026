@@ -212,6 +212,13 @@ async def seed(db):
     db.add(Message(conversation_id=conv_a1.id, direction='INBOUND', channel='email', subject='Re: Engineering productivity workflows', content='This looks very relevant for our upcoming hiring cycle. Can we schedule a 15-minute introductory meeting this Thursday at 2pm PST?'))
 
     # 7. Research Records
+    # PostgreSQL enforces this relationship immediately (SQLite historically
+    # allowed these synthetic IDs before their parent runs existed).
+    db.add_all([
+        AgentRun(id='seed-run-1', campaign_id=camp_a.id, prospect_id=prospects[0].id, agent_type='RESEARCH', status='COMPLETED', output_data={'tool': 'DEMO', 'candidate_status': 'verified'}),
+        AgentRun(id='seed-run-2', campaign_id=camp_b.id, prospect_id=prospects[2].id, agent_type='RESEARCH', status='COMPLETED', output_data={'tool': 'DEMO', 'candidate_status': 'verified'}),
+    ])
+    await db.flush()
     # Ava Reed
     res_a = ProspectResearch(
         campaign_id=camp_a.id,

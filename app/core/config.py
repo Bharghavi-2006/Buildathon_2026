@@ -1,5 +1,5 @@
 from functools import lru_cache
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from dotenv import load_dotenv
 
@@ -8,7 +8,10 @@ load_dotenv()
 
 @dataclass
 class Settings:
-    database_url: str = os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///./sdr.db')
+    database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///./sdr.db'))
+    db_pool_size: int = field(default_factory=lambda: int(os.getenv('DB_POOL_SIZE', '5')))
+    db_max_overflow: int = field(default_factory=lambda: int(os.getenv('DB_MAX_OVERFLOW', '10')))
+    db_pool_timeout_seconds: int = field(default_factory=lambda: int(os.getenv('DB_POOL_TIMEOUT_SECONDS', '30')))
     neo4j_uri: str = os.getenv('NEO4J_URI', '')
     neo4j_username: str = os.getenv('NEO4J_USERNAME', 'neo4j')
     neo4j_password: str = os.getenv('NEO4J_PASSWORD', '')

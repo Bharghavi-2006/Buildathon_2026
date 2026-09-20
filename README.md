@@ -21,6 +21,36 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 Neo4j remains optional: leave `NEO4J_URI` empty when relationship projection is not needed.
 
+## PostgreSQL / AWS RDS deployment
+
+PostgreSQL is the production source of truth. The application accepts one async SQLAlchemy URL through `DATABASE_URL`; it does not contain RDS credentials in source code. Apply migrations before starting a PostgreSQL-backed API:
+
+```bash
+# Set this in your shell, deployment secret store, or generated environment file.
+# For IAM auth, generate the short-lived token outside the app and URL-encode it.
+$env:DATABASE_URL='postgresql+asyncpg://<db-user>:<password-or-iam-token>@<rds-host>:5432/<database>?ssl=require'
+python -m alembic upgrade head
+python scripts/import_sqlite_to_postgres.py --source sdr.db
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+The importer is ID-preserving and copies every application table in foreign-key order. It refuses a non-empty target unless `--replace` is supplied. Do not use `--replace` against a database that contains production data. SQLite remains the default local workflow; PostgreSQL startup intentionally fails with a clear message until Alembic has created its schema.
+
+For AWS IAM DB authentication, use a runtime process with AWS credentials authorized for `rds-db:connect`, generate the token immediately before migrations or startup, and keep it out of source control:
+
+```powershell
+$env:RDS_HOST = 'database-1.cluster-cryqucg2c15b.ap-south-1.rds.amazonaws.com'
+$token = aws rds generate-db-auth-token --hostname $env:RDS_HOST --port 5432 --region ap-south-1 --username postgres
+$encodedToken = [uri]::EscapeDataString($token)
+$env:DATABASE_URL = "postgresql+asyncpg://postgres:$encodedToken@$env:RDS_HOST`:5432/postgres?ssl=require"
+python -m alembic upgrade head
+python scripts/import_sqlite_to_postgres.py --source .\sdr.db
+python -m alembic current
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+IAM tokens expire after 15 minutes. Generate a new URL/token before a process needs to open new database connections, or have your deployment platform refresh it; the application intentionally does not generate or store AWS credentials. Verify the imported data with `python -m alembic current`, `GET /health`, and `GET /api/manager/dashboard` using the manager demo identity header.
+
 ## Optional Docker deployment
 
 Docker Compose is an optional convenience path for a full local PostgreSQL + Neo4j stack. Run `docker compose up --build`; its Compose configuration supplies the container-specific database settings. It is not required for development or deployment.
