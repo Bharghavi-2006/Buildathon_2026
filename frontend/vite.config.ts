@@ -1,5 +1,18 @@
-import { defineConfig } from 'vite';
+import { defineConfig, ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
+
+// '/campaigns/*' and '/monitoring' are both real backend REST paths (called via
+// axios/XHR from inside the already-loaded app) AND client-side React Router
+// pages of the same name. A blanket proxy on those prefixes intercepts a full
+// page navigation (a hard refresh, a typed URL, a bookmark) before Vite's own
+// SPA fallback gets a chance to serve index.html, so the browser shows a raw
+// backend JSON error instead of the app. Only forward requests that look like
+// an API call (not a browser document navigation) for those two prefixes.
+const bypassNavigation: ProxyOptions['bypass'] = (req) => {
+  if (req.headers.accept?.includes('text/html')) {
+    return '/index.html';
+  }
+};
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -14,6 +27,7 @@ export default defineConfig({
       '/campaigns': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        bypass: bypassNavigation,
       },
       '/prospects': {
         target: 'http://localhost:8000',
@@ -34,6 +48,7 @@ export default defineConfig({
       '/monitoring': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        bypass: bypassNavigation,
       },
       '/me': {
         target: 'http://localhost:8000',

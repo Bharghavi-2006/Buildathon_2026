@@ -26,6 +26,34 @@ export const campaignsApi = {
   getAlerts: async (): Promise<AlertItem[]> => {
     return await apiClient.get<AlertItem[]>('/api/manager/alerts');
   },
+  getAgingApprovals: async (): Promise<Array<{
+    approval_id: string;
+    representative: { id: string; name: string };
+    campaign: { id: string; name: string };
+    prospect: any;
+    age_hours: number;
+    channel: string;
+    message_preview: string;
+    created_at: string;
+    status: string;
+  }>> => {
+    return await apiClient.get('/api/manager/approvals/aging');
+  },
+  getApprovalsSummary: async (): Promise<{
+    total_pending: number;
+    aging_count: number;
+    oldest_age_hours: number;
+    aging_threshold_hours: number;
+    by_representative: Array<{ representative_id: string; representative: string; pending: number; aging: number; campaign_ids: string[] }>;
+  }> => {
+    return await apiClient.get('/api/manager/approvals/summary');
+  },
+  getCampaignConversations: async (id: string): Promise<Array<{
+    id: string; prospect_id: string; campaign_id?: string; status: string; created_at?: string; updated_at?: string;
+    prospect: any; last_message: any;
+  }>> => {
+    return await apiClient.get(`/campaigns/${id}/conversations`);
+  },
   getCampaign: async (id: string): Promise<Campaign> => {
     return await apiClient.get<Campaign>(`/campaigns/${id}`);
   },
