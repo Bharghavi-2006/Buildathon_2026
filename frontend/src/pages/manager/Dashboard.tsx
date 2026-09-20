@@ -202,14 +202,14 @@ export const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-purple-500/5 text-sm">
-                {dashboard.campaigns.length === 0 ? (
+                {(dashboard.campaigns || []).length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-500 text-sm">
                       No campaigns yet. Create your first campaign to begin discovering prospects.
                     </td>
                   </tr>
                 ) : (
-                  dashboard.campaigns.map((c) => {
+                  (dashboard.campaigns || []).map((c) => {
                     const isPaused = c.status === 'PAUSED';
                     const isDraft = c.status === 'DRAFT';
                     return (
