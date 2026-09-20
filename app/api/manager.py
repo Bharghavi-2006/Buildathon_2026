@@ -41,11 +41,20 @@ async def dashboard(db:AsyncSession=Depends(get_session),identity=Depends(requir
     campaigns=(await db.scalars(select(Campaign))).all(); cards=[]
     for c in campaigns:
         cards.append({'id':c.id,'name':c.name,'icp_summary':f"{', '.join(c.target_roles)} / {', '.join(c.target_industries)}",'status':c.status,'prospect_count':await db.scalar(select(func.count()).select_from(CampaignProspect).where(CampaignProspect.campaign_id==c.id)) or 0,'outreach_sent':await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.campaign_id==c.id,OutreachEvent.status=='SENT')) or 0,'meetings_booked':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.campaign_id==c.id,Conversation.status=='MEETING_INTENT')) or 0,'created_at':c.created_at,'updated_at':c.updated_at})
-    return {'pending_approvals':await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.status=='PENDING')) or 0,'replies_needing_attention':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.status=='OPEN')) or 0,'meetings_booked_today':sum(x['meetings_booked'] for x in cards),'active_alerts':0,'campaigns':cards}
+    threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
+    aging_count=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.status=='PENDING', ApprovalRequest.created_at < threshold)) or 0
+    return {'pending_approvals':await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.status=='PENDING')) or 0,'replies_needing_attention':await db.scalar(select(func.count()).select_from(Conversation).where(Conversation.status=='OPEN')) or 0,'meetings_booked_today':sum(x['meetings_booked'] for x in cards),'active_alerts':aging_count,'campaigns':cards}
 @router.get('/campaigns')
 async def campaigns(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return (await dashboard(db,identity))['campaigns']
 @router.get('/alerts')
-async def alerts(identity=Depends(require_manager)): return []
+async def alerts(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    threshold=datetime.utcnow()-timedelta(hours=settings().approval_aging_threshold_hours)
+    aging=(await db.execute(select(ApprovalRequest,User).join(User,ApprovalRequest.representative_id==User.id).where(ApprovalRequest.status=='PENDING',ApprovalRequest.created_at < threshold))).all()
+    res=[]
+    for a,u in aging:
+        age_h=max(1,int((datetime.utcnow()-a.created_at).total_seconds()/3600))
+        res.append({'id':a.id,'type':'AGING_APPROVAL','severity':'HIGH','message':f'1 approval draft review • {age_h}h - {u.name} • Immediate attention required','created_at':a.created_at})
+    return res
 @router.post('/campaigns')
 async def create(data:ManagerCampaignCreate,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     c=Campaign(name=data.name,description=data.description,status='DRAFT'); db.add(c); await db.flush(); db.add(CampaignSetup(campaign_id=c.id,owner_id=identity[0].id))

@@ -23,6 +23,7 @@ class Settings:
     dronahq_research_webhook_url: str = os.getenv('DRONAHQ_RESEARCH_WEBHOOK_URL', '')
     dronahq_research_webhook_api_key: str = os.getenv('DRONAHQ_RESEARCH_WEBHOOK_API_KEY', '')
     dronahq_research_agent_id: str = os.getenv('DRONAHQ_RESEARCH_AGENT_ID', '')
+    cors_origins: str = os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
 
 @lru_cache
 def settings() -> Settings: return Settings()

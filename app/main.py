@@ -13,6 +13,7 @@ from app.rag.retriever import SimpleRetriever
 from app.core.config import settings
 from app.api.auth import current_identity, require_manager
 from app.api.manager import router as manager_router
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app):
@@ -21,6 +22,14 @@ async def lifespan(app):
     async with SessionLocal() as db: await seed(db)
     yield
 app=FastAPI(title='Autonomous SDR Platform',version='0.1.0',lifespan=lifespan)
+origins = [o.strip() for o in settings().cors_origins.split(',') if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins if origins else ['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 app.include_router(manager_router)
 def dump(x):
     # Mapper attributes (rather than SQL column names) handle reserved names safely.
@@ -190,6 +199,32 @@ async def manager_override(id:str,db:AsyncSession=Depends(get_session),identity=
 @app.get('/prospects/{id}/conversations')
 async def conversations(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await prospect_or_404(id,db); return [dump(x) for x in (await db.scalars(select(Conversation).where(Conversation.prospect_id==id))).all()]
+@app.get('/conversations/{id}/messages')
+async def conversation_messages(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    c=await db.get(Conversation,id)
+    if not c: raise HTTPException(404,'Conversation not found')
+    msgs=(await db.scalars(select(Message).where(Message.conversation_id==id).order_by(Message.created_at.asc()))).all()
+    return [dump(m) for m in msgs]
+@app.post('/conversations/{id}/messages')
+async def send_manual_reply(id:str,data:dict,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    c=await db.get(Conversation,id)
+    if not c: raise HTTPException(404,'Conversation not found')
+    content=data.get('content','').strip()
+    if not content: raise HTTPException(422,'Message content is required')
+    channel=data.get('channel','email')
+    msg=Message(conversation_id=c.id,direction='OUTBOUND',channel=channel,content=content,subject=data.get('subject',''))
+    db.add(msg)
+    if c.campaign_id:
+        db.add(OutreachEvent(campaign_id=c.campaign_id,prospect_id=c.prospect_id,channel=channel,status='SENT',content=content))
+    await db.commit(); await db.refresh(msg); return dump(msg)
+@app.get('/campaigns/{id}/conversations')
+async def campaign_conversations(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    await campaign_or_404(id,db); convs=(await db.scalars(select(Conversation).where(Conversation.campaign_id==id))).all(); res=[]
+    for c in convs:
+        p=await db.get(Prospect,c.prospect_id)
+        last_msg=await db.scalar(select(Message).where(Message.conversation_id==c.id).order_by(Message.created_at.desc()))
+        res.append({**dump(c),'prospect':dump(p) if p else None,'last_message':dump(last_msg) if last_msg else None})
+    return res
 @app.post('/webhooks/inbound-message')
 async def inbound(data:InboundMessage,db:AsyncSession=Depends(get_session)):
     await prospect_or_404(data.prospect_id,db); c=await db.scalar(select(Conversation).where(Conversation.prospect_id==data.prospect_id,Conversation.campaign_id==data.campaign_id))
@@ -211,6 +246,8 @@ async def analytics(id:str,db:AsyncSession=Depends(get_session),identity=Depends
 async def dashboard(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     n=lambda m:select(func.count()).select_from(m)
     return {'active_campaigns':await db.scalar(n(Campaign).where(Campaign.status=='LIVE')),'total_prospects':await db.scalar(n(Prospect)),'outreach_sent':await db.scalar(n(OutreachEvent).where(OutreachEvent.status=='SENT')),'agent_runs':await db.scalar(n(AgentRun)),'follow_ups_pending':await db.scalar(n(ScheduledAction).where(ScheduledAction.status=='PENDING'))}
+@app.get('/control/kill-switch')
+async def get_kill_switch(): return {'global_kill_switch':settings().global_kill_switch}
 @app.post('/control/kill-switch')
 async def kill_switch(identity=Depends(require_manager)): settings().global_kill_switch=True; return {'global_kill_switch':True,'message':'All outreach is blocked'}
 @app.post('/control/kill-switch/reset')
