@@ -182,9 +182,18 @@ async def qualification(id:str,db:AsyncSession=Depends(get_session),identity=Dep
 @app.post('/campaigns/{id}/outreach')
 async def outreach(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return await execute(id,'outreach',db)
 
-def approval_view(approval, campaign, prospect=None):
+def approval_view(approval, campaign, prospect=None, cp=None):
     payload=approval.payload or {}
-    return {'id':approval.id,'campaign':{'id':campaign.id,'name':campaign.name},'prospect':dump(prospect) if prospect else None,'channel':payload.get('channel','email'),'generated_message':payload.get('message',payload.get('content',payload.get('summary',''))),'priority':payload.get('priority','NORMAL'),'intent':payload.get('intent','OUTREACH'),'agent':payload.get('agent','PERSONALIZATION'),'prompt_version':payload.get('prompt_version'),'source_references':payload.get('source_references',[]),'created_at':approval.created_at,'status':approval.status}
+    return {'id':approval.id,'campaign':{'id':campaign.id,'name':campaign.name},'prospect':dump(prospect) if prospect else None,'channel':payload.get('channel','email'),'generated_message':payload.get('message',payload.get('content',payload.get('summary',''))),'priority':payload.get('priority','NORMAL'),'intent':payload.get('intent','OUTREACH'),'agent':payload.get('agent','PERSONALIZATION'),'prompt_version':payload.get('prompt_version'),'source_references':payload.get('source_references',[]),'created_at':approval.created_at,'status':approval.status,'fit_score':cp.qualification_score if cp else None,'fit_reason':cp.qualification_reason if cp else None}
+
+async def prospect_conflict(db, prospect_id, exclude_campaign_id):
+    """Same cross-campaign-conflict definition PolicyEngine authoritatively enforces at send
+    time: another campaign_prospect row for this prospect, in a different LIVE campaign,
+    that has already been contacted there."""
+    row=(await db.execute(select(CampaignProspect,Campaign).join(Campaign,CampaignProspect.campaign_id==Campaign.id).where(CampaignProspect.prospect_id==prospect_id,CampaignProspect.campaign_id!=exclude_campaign_id,Campaign.status=='LIVE',CampaignProspect.last_contacted_at.is_not(None)))).first()
+    if not row: return None
+    cp,other=row
+    return {'other_campaign_id':other.id,'other_campaign_name':other.name}
 
 async def apply_approval(approval, actor, db, override=False, edited_content=None):
     campaign=await campaign_or_404(approval.campaign_id,db)
@@ -199,10 +208,10 @@ async def apply_approval(approval, actor, db, override=False, edited_content=Non
         approval.status='SCHEDULED'; approval.decided_by_id=actor.id
         db.add(ScheduledAction(action_type='OUTREACH',campaign_id=campaign.id,prospect_id=prospect.id,channel=channel,scheduled_at=datetime.utcnow()+timedelta(hours=1),metadata_={'approval_id':approval.id,'content':payload.get('message','')}))
         db.add(AuditLog(action='APPROVAL_SCHEDULED',entity_type='approval',entity_id=approval.id,details={**details,'new_state':'SCHEDULED'})); await db.commit()
-        return {'allowed':True,'scheduled':True,'approval':approval_view(approval,campaign,prospect),'policy':result.model_dump()}
+        return {'allowed':True,'scheduled':True,'approval':approval_view(approval,campaign,prospect,cp),'policy':result.model_dump()}
     if not result.allowed:
         db.add(AuditLog(action='APPROVAL_BLOCKED',entity_type='approval',entity_id=approval.id,details={**details,'new_state':'PENDING'})); await db.commit()
-        return {'allowed':False,'reason_code':result.rule,'message':result.reason,'approval':approval_view(approval,campaign,prospect)}
+        return {'allowed':False,'reason_code':result.rule,'message':result.reason,'approval':approval_view(approval,campaign,prospect,cp)}
     try:
         delivery=await EmailDeliveryService().deliver(
             db, campaign, prospect, channel=channel, body=payload.get('message',''),
@@ -211,18 +220,18 @@ async def apply_approval(approval, actor, db, override=False, edited_content=Non
         )
     except DeliveryError as exc:
         db.add(AuditLog(action='DELIVERY_BLOCKED',entity_type='approval',entity_id=approval.id,details={**details,'new_state':'PENDING','reason':str(exc)})); await db.commit()
-        return {'allowed':False,'reason_code':'DELIVERY_CONFIGURATION','message':str(exc),'approval':approval_view(approval,campaign,prospect)}
+        return {'allowed':False,'reason_code':'DELIVERY_CONFIGURATION','message':str(exc),'approval':approval_view(approval,campaign,prospect,cp)}
     approval.status='SENT'; approval.decided_by_id=actor.id; approval.decision_note='Manager emergency override' if override else 'Approved by representative'
     db.add(OutreachEvent(campaign_id=campaign.id,prospect_id=prospect.id,channel=channel,status='SENT',content=payload.get('message',''))); cp.last_contacted_at=datetime.utcnow(); cp.current_stage='DELIVERED'; prospect.lifecycle_status='CONTACTED'
     db.add(AuditLog(action='MANAGER_APPROVAL_OVERRIDE' if override else ('APPROVAL_EDITED_AND_APPROVED' if edited_content is not None else 'APPROVAL_APPROVED'),entity_type='approval',entity_id=approval.id,details={**details,'new_state':'SENT','delivery_id':delivery.id,'delivery_mode':delivery.delivery_mode,'intended_recipient':delivery.intended_recipient,'actual_recipient':delivery.actual_recipient})); await db.commit()
-    return {'allowed':True,'scheduled':False,'approval':approval_view(approval,campaign,prospect),'policy':result.model_dump(),'delivery':{'id':delivery.id,'mode':delivery.delivery_mode,'intended_recipient':delivery.intended_recipient,'actual_recipient':delivery.actual_recipient}}
+    return {'allowed':True,'scheduled':False,'approval':approval_view(approval,campaign,prospect,cp),'policy':result.model_dump(),'delivery':{'id':delivery.id,'mode':delivery.delivery_mode,'intended_recipient':delivery.intended_recipient,'actual_recipient':delivery.actual_recipient}}
 
 @app.get('/api/rep/approvals')
 async def rep_approvals(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
     user,profile=identity
     if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
     rows=(await db.execute(select(ApprovalRequest,Campaign,CampaignProspect,Prospect).join(Campaign,ApprovalRequest.campaign_id==Campaign.id).outerjoin(CampaignProspect,ApprovalRequest.campaign_prospect_id==CampaignProspect.id).outerjoin(Prospect,CampaignProspect.prospect_id==Prospect.id).where(ApprovalRequest.representative_id==user.id))).all()
-    return [approval_view(a,c,p) for a,c,cp,p in rows]
+    return [approval_view(a,c,p,cp) for a,c,cp,p in rows]
 
 async def rep_approval_or_404(id, user_id, db):
     approval=await db.get(ApprovalRequest,id)
@@ -257,6 +266,25 @@ async def rep_batch_approve(data:BatchApprovalIn,db:AsyncSession=Depends(get_ses
         try: results.append({'approval_id':id,**await apply_approval(await rep_approval_or_404(id,user.id,db),user,db)})
         except HTTPException as exc: results.append({'approval_id':id,'allowed':False,'reason_code':'NOT_ELIGIBLE','message':exc.detail})
     return {'approved':sum(x.get('allowed') and not x.get('scheduled') for x in results),'blocked':sum(not x.get('allowed') for x in results),'scheduled':sum(x.get('scheduled',False) for x in results),'results':results}
+@app.get('/api/rep/approvals/{id}/context')
+async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    """Collapsible audit-trail context for an approval item: which agent/prompt produced it, and the RAG context available for this campaign."""
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    approval=await db.get(ApprovalRequest,id)
+    if not approval or approval.representative_id!=user.id: raise HTTPException(404,'Approval not found in your queue')
+    campaign=await campaign_or_404(approval.campaign_id,db)
+    cp=await db.get(CampaignProspect,approval.campaign_prospect_id) if approval.campaign_prospect_id else None
+    prospect=await db.get(Prospect,cp.prospect_id) if cp else None
+    agent_run_id=(approval.payload or {}).get('agent_run_id')
+    agent_run=await db.get(AgentRun,agent_run_id) if agent_run_id else None
+    rag_context=await SimpleRetriever().retrieve(db,f"{campaign.instructions} {prospect.industry if prospect else ''}")
+    return {
+        'agent':(approval.payload or {}).get('agent','PERSONALIZATION'),
+        'prompt_version':(approval.payload or {}).get('prompt_version'),
+        'agent_run':{'id':agent_run.id,'status':agent_run.status,'engine_version':(agent_run.output_data or {}).get('engine_version'),'dronahq_execution_id':(agent_run.output_data or {}).get('dronahq_execution_id'),'provider':(agent_run.output_data or {}).get('provider')} if agent_run else None,
+        'rag_context':rag_context,
+    }
 @app.post('/api/manager/approvals/{id}/approve')
 async def manager_override(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     approval=await db.get(ApprovalRequest,id)
@@ -281,6 +309,8 @@ async def send_manual_reply(id:str,data:dict,db:AsyncSession=Depends(get_session
     if not c.campaign_id:
         raise HTTPException(409,'Outbound delivery requires a campaign context')
     campaign=await campaign_or_404(c.campaign_id,db)
+    user,profile=identity
+    if profile.role=='REPRESENTATIVE': await representative_campaign_access(campaign.id,user.id,db)
     # A manual reply always operates on an already-open conversation (never a cold first
     # touch, which only ever goes through the approval pipeline), so a campaign pause or
     # daily limit — controls on new outreach volume — must not block finishing this thread.
@@ -498,16 +528,26 @@ async def rep_workspace(db:AsyncSession=Depends(get_session),identity=Depends(cu
     prospect_ids=[p.id for _,_,p in lead_rows]
     approvals=(await db.execute(select(ApprovalRequest,CampaignProspect,Prospect,Campaign).join(CampaignProspect,ApprovalRequest.campaign_prospect_id==CampaignProspect.id).join(Prospect,CampaignProspect.prospect_id==Prospect.id).join(Campaign,ApprovalRequest.campaign_id==Campaign.id).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status=='PENDING').order_by(ApprovalRequest.created_at.asc()))).all()
     conversations=(await db.execute(select(Conversation,Prospect,Campaign).join(Prospect,Conversation.prospect_id==Prospect.id).join(Campaign,Conversation.campaign_id==Campaign.id).where(Conversation.campaign_id.in_(campaign_ids),Conversation.prospect_id.in_(prospect_ids)))).all() if campaign_ids and prospect_ids else []
-    campaign_cards=[]
+    campaign_cards=[]; channel_live={ch:False for ch in ['email','linkedin','message','voice']}
     for assignment in assignments:
         campaign=await db.get(Campaign,assignment.campaign_id)
         assigned=[cp for _,cp,_ in lead_rows if cp.campaign_id==campaign.id]
         open_count=sum(c.status=='OPEN' and c.campaign_id==campaign.id for c,_,_ in conversations)
         channels=(await db.scalars(select(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==campaign.id))).all()
-        campaign_cards.append({'campaign':dump(campaign),'workload':len(assigned),'open_conversations':open_count,'channels':[{'channel':x.channel,'enabled':x.enabled} for x in channels] or [{'channel':x,'enabled':True} for x in campaign.active_channels]})
+        channel_list=[{'channel':x.channel,'enabled':x.enabled} for x in channels] or [{'channel':x,'enabled':True} for x in campaign.active_channels]
+        if campaign.status=='LIVE':
+            for ch in channel_list:
+                if ch['enabled']: channel_live[ch['channel']]=True
+        has_conflict=False
+        for _,cp,p in lead_rows:
+            if cp.campaign_id==campaign.id and await prospect_conflict(db,p.id,campaign.id): has_conflict=True; break
+        campaign_cards.append({'campaign':dump(campaign),'workload':len(assigned),'open_conversations':open_count,'channels':channel_list,'has_conflict':has_conflict})
     used=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status.in_(['SENT','SCHEDULED']),ApprovalRequest.updated_at>datetime.utcnow()-timedelta(days=1))) or 0
     limit=next((a.daily_send_limit for a in assignments if a.daily_send_limit is not None),25)
-    return {'metrics':{'pending_approvals':len(approvals),'active_conversations':sum(c.status=='OPEN' for c,_,_ in conversations),'meetings_booked':sum(c.status=='MEETING_INTENT' for c,_,_ in conversations),'capacity_used':used,'capacity_limit':limit,'capacity_remaining':max(0,limit-used)},'campaigns':campaign_cards,'approvals':[{'approval':dump(a),'prospect':dump(p),'campaign':dump(c),'association':dump(cp)} for a,cp,p,c in approvals],'conversations':[{'conversation':dump(c),'prospect':dump(p),'campaign':dump(camp)} for c,p,camp in conversations]}
+    approval_items=[]
+    for a,cp,p,c in approvals:
+        approval_items.append({'approval':dump(a),'prospect':dump(p),'campaign':dump(c),'association':dump(cp),'conflict':await prospect_conflict(db,p.id,c.id)})
+    return {'metrics':{'pending_approvals':len(approvals),'active_conversations':sum(c.status=='OPEN' for c,_,_ in conversations),'meetings_booked':sum(c.status=='MEETING_INTENT' for c,_,_ in conversations),'capacity_used':used,'capacity_limit':limit,'capacity_remaining':max(0,limit-used),'channel_status':[{'channel':ch,'live':live} for ch,live in channel_live.items()]},'campaigns':campaign_cards,'approvals':approval_items,'conversations':[{'conversation':dump(c),'prospect':dump(p),'campaign':dump(camp)} for c,p,camp in conversations]}
 @app.get('/me/campaigns')
 async def my_campaigns(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
     user,profile=identity

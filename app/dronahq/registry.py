@@ -39,7 +39,15 @@ async def run_agent(agent: str, payload: dict) -> dict:
         prospect=payload.get('prospect', {})
         first_name=prospect.get('first_name', 'there')
         if agent == 'personalization':
-            return {'result': {'channel': 'email', 'subject': f'Idea for {first_name}\'s team', 'draft': f'Hi {first_name},\n\nThis is a demo outreach draft. Please review before sending.\n\nBest,\nThe GTM team', 'provider': 'demo'}}
+            channel=payload.get('channel', 'email')
+            drafts={
+                'email': f'Hi {first_name},\n\nThis is a demo outreach draft. Please review before sending.\n\nBest,\nThe GTM team',
+                'linkedin': f'Hi {first_name} — this is a demo LinkedIn connection note. Please review before sending.',
+                'message': f'Hi {first_name}, this is a demo SMS draft. Please review before sending.',
+                'sms': f'Hi {first_name}, this is a demo SMS draft. Please review before sending.',
+                'voice': f'Demo voice call script for {first_name}. Please review before placing the call.',
+            }
+            return {'result': {'channel': channel, 'subject': f'Idea for {first_name}\'s team' if channel == 'email' else '', 'draft': drafts.get(channel, drafts['email']), 'provider': 'demo'}}
         return {'result': {'summary': f'Demo {agent.replace("_", " ")} result.', 'provider': 'demo'}}
     config = agent_registry().get(agent)
     if not config or not config.configured:
