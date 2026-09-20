@@ -258,4 +258,10 @@ export const campaignsApi = {
   getIntegrationsStatus: async (): Promise<{ llm_provider: string; demo_mode: boolean; agents: Record<string, string> }> => {
     return await apiClient.get('/api/manager/integrations-status');
   },
+
+  // Sender bots: draft outreach on a specific channel through the agent pipeline
+  // (demo fallback when no webhook is configured) and queue it for rep approval.
+  generateDrafts: async (id: string, channel: 'email' | 'linkedin' | 'sms', limit: number = 10): Promise<{ channel: string; drafted: string[]; skipped: Array<{ prospect_id: string; reason: string }> }> => {
+    return await apiClient.post(`/api/manager/campaigns/${id}/generate-drafts`, { channel, limit });
+  },
 };

@@ -16,6 +16,7 @@ from app.matching.engine import RepMatchEngine
 from app.core.config import settings
 from app.dronahq.registry import agent_registry, run_agent, public_agent_status
 from app.hurdles.service import ensure_hurdles
+from app.delivery.service import CHANNEL_RECIPIENT_FIELD
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
 def out(x): return {a.key:getattr(x,a.key) for a in __import__('sqlalchemy').inspect(x).mapper.column_attrs}
@@ -286,6 +287,41 @@ async def run_pipeline_agent(id:str,prospect_id:str,stage:str,db:AsyncSession=De
     elif stage=='conversation': cp.current_stage='CONVERSATION_ANALYZED'
     else: cp.current_stage='FOLLOW_UP_RECOMMENDED'
     await db.commit(); return {'run_id':run.id,'stage':cp.current_stage,'result':result}
+@router.post('/campaigns/{id}/generate-drafts')
+async def generate_drafts(id:str,data:GenerateDraftsIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Channel-specific outreach 'sender bot': drafts a personalized message for each
+    assigned lead on this channel through the same agent pipeline as the wizard
+    (falls back to a demo draft when no DronaHQ webhook is configured), and queues
+    each draft into the same representative approval queue — nothing bypasses approval."""
+    requested=data.channel.lower(); channel='message' if requested=='sms' else requested
+    if channel not in ['email','linkedin','message','voice']: raise HTTPException(422,'Unsupported channel')
+    c=await campaign(id,db)
+    if channel not in (c.active_channels or []): raise HTTPException(409,f'{requested} is not an active channel for this campaign')
+    policy=await PolicyEngine().check_agent_execution(db,c,'PERSONALIZATION')
+    if not policy.allowed: raise HTTPException(409,detail={'code':policy.rule,'message':policy.reason})
+    field=CHANNEL_RECIPIENT_FIELD.get(channel,'email')
+    rows=(await db.execute(select(CampaignProspect,Prospect).join(Prospect,CampaignProspect.prospect_id==Prospect.id).where(CampaignProspect.campaign_id==id))).all()
+    drafted=[]; skipped=[]
+    for cp,p in rows:
+        if len(drafted)>=data.limit: break
+        if not getattr(p,field,''): skipped.append({'prospect_id':p.id,'reason':f'Prospect has no value for {field}'}); continue
+        if await db.scalar(select(ApprovalRequest).where(ApprovalRequest.campaign_prospect_id==cp.id,ApprovalRequest.status=='PENDING')): skipped.append({'prospect_id':p.id,'reason':'Already has a pending draft'}); continue
+        assignment=await db.scalar(select(LeadAssignment).where(LeadAssignment.campaign_prospect_id==cp.id,LeadAssignment.status=='ASSIGNED'))
+        if not assignment: skipped.append({'prospect_id':p.id,'reason':'No representative assigned to this lead'}); continue
+        payload=jsonable_encoder({'campaign':out(c),'prospect':out(p),'channel':channel})
+        run=AgentRun(campaign_id=id,prospect_id=p.id,agent_type='PERSONALIZATION',status='RUNNING',input_data=payload); db.add(run); await db.flush()
+        try:
+            raw=await run_agent('personalization',payload)
+        except DiscoveryProviderError as exc:
+            run.status='FAILED'; run.output_data={'code':exc.code,'error':exc.message}; skipped.append({'prospect_id':p.id,'reason':exc.message}); continue
+        result=raw.get('result',raw.get('data',raw)) if isinstance(raw,dict) else {}
+        body=result.get('draft',result.get('body','')) if isinstance(result,dict) else ''
+        if not body: run.status='FAILED'; run.output_data={'error':'Agent returned no draft'}; skipped.append({'prospect_id':p.id,'reason':'Agent returned no draft'}); continue
+        run.status='COMPLETED'; run.output_data=result
+        db.add(ApprovalRequest(campaign_id=id,campaign_prospect_id=cp.id,representative_id=assignment.representative_id,request_type='OUTREACH',payload={'channel':channel,'subject':result.get('subject',''),'message':body,'agent':'PERSONALIZATION','agent_run_id':run.id}))
+        cp.current_stage='PENDING_APPROVAL'; drafted.append(p.id)
+    audit(db,'DRAFTS_GENERATED','campaign',id,{'actor':identity[0].id,'channel':channel,'drafted':len(drafted),'skipped':len(skipped)})
+    await db.commit(); return {'channel':channel,'drafted':drafted,'skipped':skipped}
 @router.post('/campaigns/{id}/prospects/import')
 async def import_prospects(id:str,data:ProspectImportIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); ids=[]

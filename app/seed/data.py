@@ -124,10 +124,9 @@ async def seed(db):
     await db.flush()
 
     # Assign campaigns to representatives
-    # Aisha gets Campaign A and C, Vikram gets Campaign B
-    db.add(CampaignAssignment(campaign_id=camp_a.id, representative_id=reps[0].id, assigned_by_id=manager.id))
-    db.add(CampaignAssignment(campaign_id=camp_b.id, representative_id=reps[1].id, assigned_by_id=manager.id))
-    db.add(CampaignAssignment(campaign_id=camp_c.id, representative_id=reps[0].id, assigned_by_id=manager.id))
+    # Aisha gets Campaign A and C, Vikram gets Campaign B, Alex also covers Campaign A.
+    # (Aisha/Vikram's own campaign_a/b/c assignments are created once, below, with their
+    # daily_send_limit set — adding a second bare row here would just duplicate them.)
     db.add(CampaignAssignment(campaign_id=camp_a.id, representative_id=reps[2].id, assigned_by_id=manager.id))
 
     # 4. Prospects

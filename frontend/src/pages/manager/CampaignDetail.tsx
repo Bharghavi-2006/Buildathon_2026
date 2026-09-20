@@ -100,6 +100,16 @@ export const CampaignDetail: React.FC = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
   });
 
+  const generateDraftsMutation = useMutation({
+    mutationFn: (channel: 'email' | 'linkedin' | 'sms') => campaignsApi.generateDrafts(id!, channel),
+    onSuccess: (result) => {
+      const skippedNote = result.skipped.length ? ` (${result.skipped.length} skipped: ${result.skipped[0].reason})` : '';
+      alert(`${result.channel} sender bot: drafted ${result.drafted.length} outreach message${result.drafted.length === 1 ? '' : 's'} into the rep approval queue${skippedNote}.`);
+      queryClient.invalidateQueries({ queryKey: ['campaign-prospects', id] });
+    },
+    onError: (err: any) => alert(err.message || 'Failed to generate drafts'),
+  });
+
   if (campLoading || !campaign) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
@@ -470,21 +480,37 @@ export const CampaignDetail: React.FC = () => {
 
           <div className="pt-2">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Channel Status</h3>
+            <p className="text-xs text-slate-400 mb-3">
+              Each sender bot drafts outreach via the agent pipeline (falling back to a labeled demo draft when no live provider is configured) and queues it straight into the assigned rep's approval queue.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {channels.map((ch) => {
                 const Icon = CHANNEL_ICON[ch.channel] || MessageSquare;
+                const botChannel: 'email' | 'linkedin' | 'sms' = ch.channel === 'message' ? 'sms' : (ch.channel as 'email' | 'linkedin');
                 return (
-                  <div key={ch.channel} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 flex items-center justify-between">
+                  <div key={ch.channel} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-950/60 border border-blue-500/40 text-blue-300">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="font-semibold text-white text-sm capitalize">{ch.channel}</div>
+                        <div className="font-semibold text-white text-sm capitalize">{ch.channel === 'message' ? 'SMS' : ch.channel}</div>
                         <div className="text-[11px] text-slate-400">Daily limit: {ch.daily_limit} · {ch.approval_required ? 'Approval required' : 'No approval required'}</div>
                       </div>
                     </div>
-                    <StatusBadge status={ch.enabled ? 'Active' : 'Paused'} />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <StatusBadge status={ch.enabled ? 'Active' : 'Paused'} />
+                      {['email', 'linkedin', 'message'].includes(ch.channel) && (
+                        <button
+                          onClick={() => generateDraftsMutation.mutate(botChannel)}
+                          disabled={!ch.enabled || generateDraftsMutation.isPending}
+                          title={`Draft outreach for assigned leads on ${ch.channel === 'message' ? 'SMS' : ch.channel}`}
+                          className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-purple-500/20 bg-[#12152d] hover:border-purple-500/50 text-purple-300 transition-colors disabled:opacity-40"
+                        >
+                          Generate Drafts
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

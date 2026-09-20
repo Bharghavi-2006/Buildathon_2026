@@ -56,3 +56,4 @@ class HurdleKnowledgeIn(BaseModel): title: str; content: str
 class SuppressionIn(BaseModel): prospect_email: str; reason: str='Manual DNC entry'
 class NotificationThresholdsIn(BaseModel): approval_aging_threshold_hours: int=Field(ge=1,le=168); capacity_alert_threshold_pct: int=Field(ge=1,le=100)
 class ManagerCreateIn(BaseModel): name: str; email: str
+class GenerateDraftsIn(BaseModel): channel: str; limit: int=Field(default=10,ge=1,le=100)

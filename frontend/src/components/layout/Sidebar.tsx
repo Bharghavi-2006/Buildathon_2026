@@ -4,19 +4,19 @@ import { LayoutDashboard, Users, TrendingUp, Settings, HelpCircle, CheckSquare, 
 import { useAuth } from '../../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
-  const { role } = useAuth();
+  const { role, currentUser } = useAuth();
 
   const isManager = role === 'MANAGER';
+  const displayName = currentUser?.user.name || 'Loading…';
 
   return (
     <aside className="w-56 bg-[#090b1a] border-r border-purple-500/10 flex flex-col justify-between p-4 h-screen sticky top-0 flex-shrink-0 z-20">
       <div>
-        {/* User Brand / Avatar from Screenshot: "A Arjun" */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center font-bold text-white shadow-md shadow-purple-900/30">
-            A
+            {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="font-semibold text-white tracking-tight">Arjun</div>
+          <div className="font-semibold text-white tracking-tight">{displayName}</div>
         </div>
 
         {/* Main Navigation Links */}
