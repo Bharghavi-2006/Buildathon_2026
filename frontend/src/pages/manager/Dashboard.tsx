@@ -1,15 +1,25 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pause, Play, ArrowRight, Loader2 } from 'lucide-react';
+import { Plus, Pause, Play, ArrowRight, Loader2, X, Clock, MessageSquare, CalendarCheck, AlertOctagon } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AlertBanner } from '../../components/ui/AlertBanner';
 
+type PanelKind = 'approvals' | 'replies' | 'meetings' | 'alerts' | null;
+
+const PANEL_TITLE: Record<Exclude<PanelKind, null>, string> = {
+  approvals: 'Pending Approvals',
+  replies: 'Replies Needing Attention',
+  meetings: 'Meetings Booked Today',
+  alerts: 'Active Alerts',
+};
+
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [activePanel, setActivePanel] = useState<PanelKind>(null);
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['manager-dashboard'],
@@ -22,6 +32,48 @@ export const Dashboard: React.FC = () => {
     queryFn: campaignsApi.getAlerts,
     refetchInterval: 10000,
   });
+
+  // Pending approvals + replies/meetings all need real per-conversation/per-approval
+  // detail the summary dashboard endpoint doesn't carry, so each panel fetches lazily
+  // only once the manager actually opens it.
+  const { data: agingApprovals, isLoading: loadingApprovals } = useQuery({
+    queryKey: ['manager-aging-approvals'],
+    queryFn: campaignsApi.getAgingApprovals,
+    enabled: activePanel === 'approvals',
+  });
+  const { data: approvalsSummary } = useQuery({
+    queryKey: ['manager-approvals-summary'],
+    queryFn: campaignsApi.getApprovalsSummary,
+    enabled: activePanel === 'approvals',
+  });
+
+  const campaignIds = useMemo(() => (dashboard?.campaigns || []).map((c) => c.id), [dashboard]);
+  const { data: conversationsByCampaign, isLoading: loadingConversations } = useQuery({
+    queryKey: ['dashboard-conversations', campaignIds],
+    queryFn: async () => {
+      const results = await Promise.all(
+        (dashboard?.campaigns || []).map(async (c) => ({
+          campaign: c,
+          conversations: await campaignsApi.getCampaignConversations(c.id),
+        }))
+      );
+      return results;
+    },
+    enabled: (activePanel === 'replies' || activePanel === 'meetings') && campaignIds.length > 0,
+  });
+
+  const openReplies = useMemo(
+    () => (conversationsByCampaign || []).flatMap(({ campaign, conversations }) =>
+      conversations.filter((c) => c.status === 'OPEN').map((c) => ({ campaign, conversation: c }))
+    ),
+    [conversationsByCampaign]
+  );
+  const bookedMeetings = useMemo(
+    () => (conversationsByCampaign || []).flatMap(({ campaign, conversations }) =>
+      conversations.filter((c) => c.status === 'MEETING_INTENT').map((c) => ({ campaign, conversation: c }))
+    ),
+    [conversationsByCampaign]
+  );
 
   const togglePauseMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'pause' | 'resume' }) => {
@@ -96,25 +148,28 @@ export const Dashboard: React.FC = () => {
           label="Pending Approvals"
           subtext={dashboard.active_alerts > 0 ? `${dashboard.active_alerts} aging > 24hrs` : 'Within SLA'}
           color="amber"
-          onClick={() => navigate('/monitoring')}
+          onClick={() => setActivePanel('approvals')}
         />
         <MetricCard
           value={dashboard.replies_needing_attention}
           label="Replies Needing Attention"
           subtext="Active prospect responses"
           color="amber"
+          onClick={() => setActivePanel('replies')}
         />
         <MetricCard
           value={dashboard.meetings_booked_today}
           label="Meetings Booked Today"
           subtext="Meeting intent verified"
           color="emerald"
+          onClick={() => setActivePanel('meetings')}
         />
         <MetricCard
           value={dashboard.active_alerts}
           label="Active Alerts"
           subtext={dashboard.active_alerts > 0 ? 'Requires attention' : 'All systems normal'}
           color="purple"
+          onClick={() => setActivePanel('alerts')}
         />
       </div>
 
@@ -220,6 +275,137 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {activePanel && (
+        <div className="fixed inset-0 z-30 flex justify-end bg-black/50" onClick={() => setActivePanel(null)}>
+          <div className="w-full max-w-xl h-full bg-[#0a0c1c] border-l border-purple-500/20 overflow-y-auto p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">{PANEL_TITLE[activePanel]}</h2>
+              <button onClick={() => setActivePanel(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {activePanel === 'approvals' && (
+              <div className="space-y-3">
+                {approvalsSummary && (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-[#0d0f22] border border-purple-500/10 rounded-lg p-3">
+                      <div className="text-xl font-bold text-white">{approvalsSummary.total_pending}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Total pending</div>
+                    </div>
+                    <div className="bg-[#0d0f22] border border-rose-500/10 rounded-lg p-3">
+                      <div className="text-xl font-bold text-rose-400">{approvalsSummary.aging_count}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Aging &gt;{approvalsSummary.aging_threshold_hours}h</div>
+                    </div>
+                    <div className="bg-[#0d0f22] border border-purple-500/10 rounded-lg p-3">
+                      <div className="text-xl font-bold text-white">{approvalsSummary.oldest_age_hours}h</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Oldest waiting</div>
+                    </div>
+                  </div>
+                )}
+                <h3 className="text-xs font-semibold uppercase text-slate-500 pt-2">Aging drafts (past SLA)</h3>
+                {loadingApprovals && <div className="text-sm text-slate-400">Loading...</div>}
+                {agingApprovals?.map((a) => (
+                  <div key={a.approval_id} className="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <div className="text-sm font-semibold text-white">{a.prospect ? `${a.prospect.first_name} ${a.prospect.last_name}` : 'Unknown prospect'}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">{a.campaign.name} · {a.representative.name} · {a.channel}</div>
+                      </div>
+                      <span className="text-xs font-bold text-rose-300 flex items-center gap-1 whitespace-nowrap"><Clock className="w-3 h-3" />{a.age_hours}h</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-2 line-clamp-2">{a.message_preview}</p>
+                  </div>
+                ))}
+                {!loadingApprovals && !agingApprovals?.length && (
+                  <p className="text-sm text-slate-400">No approvals are past the SLA threshold right now.</p>
+                )}
+                {!!approvalsSummary?.by_representative.length && (
+                  <>
+                    <h3 className="text-xs font-semibold uppercase text-slate-500 pt-3">By representative</h3>
+                    {approvalsSummary.by_representative.map((r) => (
+                      <div key={r.representative_id} className="flex justify-between items-center text-xs bg-[#0d0f22] border border-purple-500/10 rounded-lg px-3 py-2">
+                        <span className="text-slate-200">{r.representative}</span>
+                        <span className="text-slate-400">{r.pending} pending{r.aging > 0 ? ` · ${r.aging} aging` : ''}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+
+            {activePanel === 'replies' && (
+              <div className="space-y-3">
+                {loadingConversations && <div className="text-sm text-slate-400">Loading...</div>}
+                {openReplies.map(({ campaign, conversation }) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => { setActivePanel(null); navigate(`/campaigns/${campaign.id}`); }}
+                    className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3.5 cursor-pointer hover:border-amber-500/40 transition-colors flex items-start gap-3"
+                  >
+                    <MessageSquare className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        {conversation.prospect ? `${conversation.prospect.first_name} ${conversation.prospect.last_name}` : 'Prospect'}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">{campaign.name}</div>
+                      {conversation.last_message && (
+                        <p className="text-xs text-slate-300 mt-1.5 line-clamp-2">{conversation.last_message.content}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {!loadingConversations && !openReplies.length && (
+                  <p className="text-sm text-slate-400">No open prospect replies right now.</p>
+                )}
+              </div>
+            )}
+
+            {activePanel === 'meetings' && (
+              <div className="space-y-3">
+                {loadingConversations && <div className="text-sm text-slate-400">Loading...</div>}
+                {bookedMeetings.map(({ campaign, conversation }) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => { setActivePanel(null); navigate(`/campaigns/${campaign.id}`); }}
+                    className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-3.5 cursor-pointer hover:border-emerald-500/40 transition-colors flex items-start gap-3"
+                  >
+                    <CalendarCheck className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        {conversation.prospect ? `${conversation.prospect.first_name} ${conversation.prospect.last_name}` : 'Prospect'}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">{campaign.name} · Meeting intent verified</div>
+                      {conversation.last_message && (
+                        <p className="text-xs text-slate-300 mt-1.5 line-clamp-2">{conversation.last_message.content}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {!loadingConversations && !bookedMeetings.length && (
+                  <p className="text-sm text-slate-400">No meetings booked yet today.</p>
+                )}
+              </div>
+            )}
+
+            {activePanel === 'alerts' && (
+              <div className="space-y-3">
+                {alerts?.map((a) => (
+                  <div key={a.id} className="rounded-xl border border-purple-500/20 bg-[#0d0f22] p-3.5 flex items-start gap-3">
+                    <AlertOctagon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${a.severity === 'HIGH' ? 'text-rose-400' : 'text-amber-400'}`} />
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{a.type.replace(/_/g, ' ')}</div>
+                      <p className="text-sm text-white mt-0.5">{a.message}</p>
+                    </div>
+                  </div>
+                ))}
+                {!alerts?.length && <p className="text-sm text-slate-400">All systems normal — no active alerts.</p>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

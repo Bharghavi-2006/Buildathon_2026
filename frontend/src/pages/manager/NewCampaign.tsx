@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, PlusCircle } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { WizardStepHeader } from '../../components/campaign/wizard/WizardStepHeader';
@@ -15,10 +15,22 @@ import { Step7PreLaunch } from '../../components/campaign/wizard/Step7PreLaunch'
 export const NewCampaign: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const campaignId = searchParams.get('id');
   const stepParam = parseInt(searchParams.get('step') || '1', 10);
   const currentStep = isNaN(stepParam) || stepParam < 1 || stepParam > 7 ? 1 : stepParam;
+
+  // A step's own "Save & Continue" mutation is the ground truth that the step just
+  // completed — trust it immediately rather than waiting for the read-model queries
+  // below to refetch and agree. Those queries are keyed by campaignId, and for the
+  // very first step the campaign (and therefore any query for it) doesn't exist yet
+  // until this exact transition, so there is no cache to invalidate-and-await: the
+  // fetch necessarily starts cold, and the "snap back to max unlocked step" effect
+  // fires on that first still-loading render and bounces the wizard back a step,
+  // which is what made it look like every "Save & Continue" click needed pressing
+  // twice. Tracking confirmed-just-unlocked steps locally sidesteps that race.
+  const [manualUnlocks, setManualUnlocks] = useState<number[]>([]);
 
   // 1. Fetch identity to verify Step 1 completion
   const { data: identity } = useQuery({
@@ -127,6 +139,13 @@ export const NewCampaign: React.FC = () => {
     return { completedSteps: completed, unlockedSteps: unlocked };
   }, [campaignId, identity, icp, agents, prospects, channels, prompts, assignedReps]);
 
+  // The step header and the "snap back" guard both use this union, so a step we just
+  // confirmed complete stays unlocked even on the render before its query has refetched.
+  const effectiveUnlockedSteps = useMemo(
+    () => Array.from(new Set([...unlockedSteps, ...manualUnlocks])),
+    [unlockedSteps, manualUnlocks]
+  );
+
   // Navigate to step helper
   const goToStep = (step: number) => {
     const params = new URLSearchParams(searchParams);
@@ -135,15 +154,26 @@ export const NewCampaign: React.FC = () => {
     setSearchParams(params);
   };
 
+  // Called right after a step's own mutation confirms success. Refreshing the query
+  // cache keeps other parts of the wizard (e.g. Step 7's checklist) accurate, but
+  // navigation itself never waits on that refetch — see the comment on manualUnlocks.
+  const advanceStep = (step: number, invalidateKeys: unknown[][]) => {
+    setManualUnlocks((prev) => (prev.includes(step) ? prev : [...prev, step]));
+    invalidateKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+    goToStep(step);
+  };
+
   // If URL step is ahead of unlocked steps, snap to maximum unlocked step
   useEffect(() => {
-    const maxUnlocked = Math.max(...unlockedSteps);
+    const maxUnlocked = Math.max(...effectiveUnlockedSteps);
     if (currentStep > maxUnlocked) {
       goToStep(maxUnlocked);
     }
-  }, [currentStep, unlockedSteps]);
+  }, [currentStep, effectiveUnlockedSteps]);
 
   const handleStep1Success = (createdCampaignId: string) => {
+    setManualUnlocks((prev) => (prev.includes(2) ? prev : [...prev, 2]));
+    queryClient.invalidateQueries({ queryKey: ['campaign-identity', createdCampaignId] });
     const params = new URLSearchParams();
     params.set('id', createdCampaignId);
     params.set('step', '2');
@@ -181,7 +211,7 @@ export const NewCampaign: React.FC = () => {
       <WizardStepHeader
         currentStep={currentStep}
         completedSteps={completedSteps}
-        unlockedSteps={unlockedSteps}
+        unlockedSteps={effectiveUnlockedSteps}
         onSelectStep={goToStep}
       />
 
@@ -198,7 +228,7 @@ export const NewCampaign: React.FC = () => {
           <Step2Targeting
             campaignId={campaignId}
             onBack={() => goToStep(1)}
-            onSuccess={() => goToStep(3)}
+            onSuccess={() => advanceStep(3, [['campaign-icp', campaignId]])}
           />
         )}
 
@@ -206,7 +236,7 @@ export const NewCampaign: React.FC = () => {
           <Step3Agents
             campaignId={campaignId}
             onBack={() => goToStep(2)}
-            onSuccess={() => goToStep(4)}
+            onSuccess={() => advanceStep(4, [['campaign-agents', campaignId]])}
           />
         )}
 
@@ -214,7 +244,7 @@ export const NewCampaign: React.FC = () => {
           <Step4Sourcing
             campaignId={campaignId}
             onBack={() => goToStep(3)}
-            onSuccess={() => goToStep(5)}
+            onSuccess={() => advanceStep(5, [['campaign-prospects', campaignId]])}
           />
         )}
 
@@ -222,7 +252,7 @@ export const NewCampaign: React.FC = () => {
           <Step5ChannelsPrompts
             campaignId={campaignId}
             onBack={() => goToStep(4)}
-            onSuccess={() => goToStep(6)}
+            onSuccess={() => advanceStep(6, [['campaign-channels', campaignId], ['campaign-prompts', campaignId]])}
           />
         )}
 
@@ -230,7 +260,7 @@ export const NewCampaign: React.FC = () => {
           <Step6Representatives
             campaignId={campaignId}
             onBack={() => goToStep(5)}
-            onSuccess={() => goToStep(7)}
+            onSuccess={() => advanceStep(7, [['campaign-assigned-reps', campaignId]])}
           />
         )}
 

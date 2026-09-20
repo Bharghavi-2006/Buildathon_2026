@@ -52,6 +52,10 @@ export const SdrsRoster: React.FC = () => {
     if (cid && cid !== campaignFilter) {
       setCampaignFilter(cid);
     }
+    const repId = searchParams.get('rep');
+    if (repId) {
+      setSelectedRepId(repId);
+    }
   }, [searchParams]);
 
   // Update URL params when campaign filter changes
