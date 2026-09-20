@@ -51,3 +51,5 @@ class DemoModeIn(BaseModel):
     demo_mode: bool=True
     demo_recipient_email: str|None=None
 class DemoReplyIn(BaseModel): message: str
+class HurdleResolveIn(BaseModel): note: str=''
+class HurdleKnowledgeIn(BaseModel): title: str; content: str

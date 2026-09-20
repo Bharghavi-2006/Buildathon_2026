@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import String, DateTime, Boolean, Float, ForeignKey, Text, JSON, Integer
+from sqlalchemy import String, DateTime, Boolean, Float, ForeignKey, Text, JSON, Integer, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def uid(): return str(uuid4())
@@ -75,8 +75,36 @@ class CampaignChannelSettings(Base, Timestamped):
     __tablename__='campaign_channel_settings'; id: Mapped[str]=mapped_column(String,primary_key=True,default=uid); campaign_id: Mapped[str]=mapped_column(ForeignKey('campaigns.id')); channel: Mapped[str]=mapped_column(String); enabled: Mapped[bool]=mapped_column(Boolean,default=True); daily_limit: Mapped[int]=mapped_column(Integer,default=25); working_hours: Mapped[dict]=mapped_column(JSON,default=dict); approval_required: Mapped[bool]=mapped_column(Boolean,default=False)
 class ProspectBatch(Base, Timestamped):
     __tablename__='prospect_batches'; id: Mapped[str]=mapped_column(String,primary_key=True,default=uid); campaign_id: Mapped[str]=mapped_column(ForeignKey('campaigns.id')); mode: Mapped[str]=mapped_column(String); prospect_ids: Mapped[list]=mapped_column(JSON,default=list); status: Mapped[str]=mapped_column(String,default='PREVIEW'); created_by_id: Mapped[str]=mapped_column(ForeignKey('users.id'))
-class RepresentativeHurdle(Base, Timestamped):
-    __tablename__='representative_hurdles'; id: Mapped[str]=mapped_column(String,primary_key=True,default=uid); representative_id: Mapped[str]=mapped_column(ForeignKey('users.id')); campaign_id: Mapped[str|None]=mapped_column(ForeignKey('campaigns.id'),nullable=True); prospect_id: Mapped[str|None]=mapped_column(ForeignKey('prospects.id'),nullable=True); agent_run_id: Mapped[str|None]=mapped_column(ForeignKey('agent_runs.id'),nullable=True); source_type: Mapped[str]=mapped_column(String); source_id: Mapped[str]=mapped_column(String); channel: Mapped[str]=mapped_column(String,default=''); category: Mapped[str]=mapped_column(String); severity: Mapped[str]=mapped_column(String,default='WARNING'); diagnostic: Mapped[str]=mapped_column(Text); recommended_resolution: Mapped[str]=mapped_column(Text,default='Review the policy decision and resolve or escalate.'); status: Mapped[str]=mapped_column(String,default='ESCALATED'); details: Mapped[dict]=mapped_column(JSON,default=dict); knowledge_gap: Mapped[bool]=mapped_column(Boolean,default=False)
-class RepresentativeHurdle(Base, Timestamped):
-    """Human-attention item emitted from an actual blocked or failed workflow event."""
-    __tablename__='representative_hurdles'; id: Mapped[str]=mapped_column(String,primary_key=True,default=uid); representative_id: Mapped[str]=mapped_column(ForeignKey('users.id')); campaign_id: Mapped[str|None]=mapped_column(ForeignKey('campaigns.id'),nullable=True); prospect_id: Mapped[str|None]=mapped_column(ForeignKey('prospects.id'),nullable=True); agent_run_id: Mapped[str|None]=mapped_column(ForeignKey('agent_runs.id'),nullable=True); source_type: Mapped[str]=mapped_column(String); source_id: Mapped[str]=mapped_column(String); channel: Mapped[str]=mapped_column(String,default=''); category: Mapped[str]=mapped_column(String); severity: Mapped[str]=mapped_column(String,default='WARNING'); diagnostic: Mapped[str]=mapped_column(Text); recommended_resolution: Mapped[str]=mapped_column(Text,default='Review the policy decision and resolve or escalate.'); status: Mapped[str]=mapped_column(String,default='ESCALATED'); details: Mapped[dict]=mapped_column(JSON,default=dict); knowledge_gap: Mapped[bool]=mapped_column(Boolean,default=False)
+class Hurdle(Base, Timestamped):
+    """AI-escalated situation requiring human attention; materialized from real backend signals (blocked outreach, failed agent runs, aging approvals) — never fabricated."""
+    __tablename__='hurdles'
+    __table_args__=(UniqueConstraint('source_type','source_id',name='uq_hurdle_source'),)
+    id: Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    source_type: Mapped[str]=mapped_column(String)  # OUTREACH_EVENT | AGENT_RUN | APPROVAL_REQUEST
+    source_id: Mapped[str]=mapped_column(String)
+    campaign_id: Mapped[str]=mapped_column(ForeignKey('campaigns.id'))
+    prospect_id: Mapped[str|None]=mapped_column(ForeignKey('prospects.id'),nullable=True)
+    representative_id: Mapped[str|None]=mapped_column(ForeignKey('users.id'),nullable=True)
+    channel: Mapped[str]=mapped_column(String,default='')
+    category: Mapped[str]=mapped_column(String)
+    status: Mapped[str]=mapped_column(String,default='ESCALATED')  # ESCALATED | WARNING | RESOLVED
+    agent_type: Mapped[str]=mapped_column(String,default='')
+    agent_run_id: Mapped[str|None]=mapped_column(ForeignKey('agent_runs.id'),nullable=True)
+    policy_rule: Mapped[str]=mapped_column(String,default='')
+    reason: Mapped[str]=mapped_column(Text,default='')
+    recommended_action: Mapped[str]=mapped_column(Text,default='')
+    context: Mapped[dict]=mapped_column(JSON,default=dict)
+    resolved_at: Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
+    resolved_by_id: Mapped[str|None]=mapped_column(ForeignKey('users.id'),nullable=True)
+    resolution_note: Mapped[str]=mapped_column(Text,default='')
+    escalated_to_manager: Mapped[bool]=mapped_column(Boolean,default=False)
+    escalated_at: Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
+class KnowledgeGapFlag(Base, Timestamped):
+    """Minimal persistent record of a rep flagging a recurring knowledge gap; feeds the manager knowledge-gap surface."""
+    __tablename__='knowledge_gap_flags'
+    id: Mapped[str]=mapped_column(String,primary_key=True,default=uid)
+    hurdle_id: Mapped[str]=mapped_column(ForeignKey('hurdles.id'))
+    campaign_id: Mapped[str]=mapped_column(ForeignKey('campaigns.id'))
+    category: Mapped[str]=mapped_column(String)
+    flagged_by_id: Mapped[str]=mapped_column(ForeignKey('users.id'))
+    note: Mapped[str]=mapped_column(Text,default='')

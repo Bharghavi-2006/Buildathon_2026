@@ -427,6 +427,85 @@ export interface RepresentativeDetailResponse {
   };
 }
 
+export interface HurdleListItem {
+  id: string;
+  status: 'ESCALATED' | 'WARNING' | 'RESOLVED';
+  category: string;
+  channel: string;
+  campaign: { id: string; name: string } | null;
+  prospect: Prospect | null;
+  reason: string;
+  recommended_action: string;
+  agent_type: string;
+  age_hours: number;
+  escalated_to_manager: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HurdleDetail extends HurdleListItem {
+  organization: { id: string; name: string; website?: string; industry?: string } | null;
+  policy_decision: { rule: string; reason: string } | null;
+  agent_escalated: {
+    agent_type: string;
+    agent_run_id: string;
+    status: string;
+    engine_version?: string | null;
+    dronahq_execution_id?: string | null;
+    output: Record<string, any>;
+  } | null;
+  conversation: { id: string; status: string; messages: Message[] } | null;
+  rag_context: Array<{ document_id: string; title: string; content: string }>;
+  voice: {
+    call_status?: string | null;
+    transcript?: string | null;
+    sentiment?: string | null;
+    transfer_status?: string | null;
+    callback_required?: boolean | null;
+    note?: string | null;
+  } | null;
+  recurring: { count_this_week: number; is_recurring: boolean; already_flagged: boolean };
+  resolution: { status: string; resolved_at?: string | null; resolved_by_id?: string | null; resolution_note: string };
+}
+
+export interface GuardrailChannel {
+  channel: string;
+  enabled: boolean;
+  daily_used: number;
+  daily_limit: number;
+  working_hours: Record<string, any>;
+  approval_required: boolean;
+  availability: 'LIVE' | 'PAUSED' | 'OUTSIDE_WORKING_HOURS' | 'LIMIT_REACHED' | 'BLOCKED_KILL_SWITCH' | 'BLOCKED_CAMPAIGN_PAUSED';
+}
+
+export interface GuardrailConflict {
+  prospect_id: string;
+  prospect_name: string;
+  other_campaign_id: string;
+  other_campaign_name: string;
+  message: string;
+}
+
+export interface GuardrailCampaignCard {
+  campaign: {
+    id: string; name: string; status: string; icp_summary: string;
+    daily_outreach_limit: number; approval_required: boolean; demo_mode: boolean;
+  };
+  restrictions: string[];
+  channels: GuardrailChannel[];
+  agents_enabled: string[];
+  working_hours: Record<string, any>;
+  paused_message: string | null;
+  conflicts: GuardrailConflict[];
+}
+
+export interface GuardrailsResponse {
+  kill_switch: { active: boolean; message: string | null };
+  representative_profile: { timezone?: string; working_hours?: Record<string, any>; supported_channels?: string[] };
+  daily_capacity: { used: number; limit: number; remaining: number; exhausted: boolean; warning: boolean };
+  campaigns: GuardrailCampaignCard[];
+}
+
 export interface CreateRepresentativePayload {
   name: string;
   email: string;
