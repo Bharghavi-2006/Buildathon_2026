@@ -34,6 +34,7 @@ class Settings:
     demo_mode: bool = os.getenv('DEMO_MODE', 'true').lower() == 'true'
     global_kill_switch: bool = os.getenv('GLOBAL_KILL_SWITCH', 'false').lower() == 'true'
     approval_aging_threshold_hours: int = int(os.getenv('APPROVAL_AGING_THRESHOLD_HOURS', '24'))
+    capacity_alert_threshold_pct: int = int(os.getenv('CAPACITY_ALERT_THRESHOLD_PCT', '90'))
     llm_provider: str = os.getenv('LLM_PROVIDER', 'mock')
     dronahq_discovery_webhook_url: str = os.getenv('DRONAHQ_DISCOVERY_WEBHOOK_URL', '')
     dronahq_discovery_webhook_api_key: str = os.getenv('DRONAHQ_DISCOVERY_WEBHOOK_API_KEY', '')

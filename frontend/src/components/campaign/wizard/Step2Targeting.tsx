@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Loader2, AlertCircle, Plus, X, Globe, Briefcase, Building, Layers, Ban, Cpu } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, AlertCircle, Plus, X, Globe, Briefcase, Building, Layers, Ban, Cpu, UserCheck } from 'lucide-react';
 import { campaignsApi } from '../../../api/campaigns';
 import { IcpConfig } from '../../../types';
 
@@ -29,6 +29,9 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
   const [fundingStages, setFundingStages] = useState<string[]>([]);
   const [minRevenue, setMinRevenue] = useState('10M');
   const [maxRevenue, setMaxRevenue] = useState('100M');
+  const [referenceProfiles, setReferenceProfiles] = useState<{ name: string; url: string }[]>([]);
+  const [refNameInput, setRefNameInput] = useState('');
+  const [refUrlInput, setRefUrlInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Suggested tags
@@ -61,6 +64,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
         if (icpData.revenue_range.min) setMinRevenue(icpData.revenue_range.min);
         if (icpData.revenue_range.max) setMaxRevenue(icpData.revenue_range.max);
       }
+      if (Array.isArray(icpData.reference_profiles)) setReferenceProfiles(icpData.reference_profiles as any);
     }
   }, [icpData]);
 
@@ -95,7 +99,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
         funding_stage: fundingStages,
         technologies: technologies,
         exclusion_criteria: exclusions,
-        reference_profiles: [],
+        reference_profiles: referenceProfiles,
         custom_criteria: {},
       };
       return await campaignsApi.updateCampaignIcp(campaignId, payload);
@@ -437,6 +441,59 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Sample / Reference Profiles */}
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <UserCheck className="w-4 h-4 text-purple-400" />
+            <label className="text-xs font-semibold text-slate-200">Sample / Reference Profiles</label>
+          </div>
+          <span className="text-[11px] text-slate-500 mb-2 block">
+            Point to a few real accounts or contacts that represent an ideal fit — the discovery agent uses these as a "find more like this" anchor.
+          </span>
+          <div className="flex flex-col sm:flex-row gap-2 mb-2">
+            <input
+              type="text"
+              value={refNameInput}
+              onChange={(e) => setRefNameInput(e.target.value)}
+              placeholder="Name or company (e.g. Ava Reed, CloudScale Systems)"
+              className="flex-1 px-3.5 py-2 bg-[#070811] border border-purple-500/20 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+            />
+            <input
+              type="text"
+              value={refUrlInput}
+              onChange={(e) => setRefUrlInput(e.target.value)}
+              placeholder="LinkedIn or company URL (optional)"
+              className="flex-1 px-3.5 py-2 bg-[#070811] border border-purple-500/20 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!refNameInput.trim()) return;
+                setReferenceProfiles([...referenceProfiles, { name: refNameInput.trim(), url: refUrlInput.trim() }]);
+                setRefNameInput(''); setRefUrlInput('');
+              }}
+              className="px-3.5 py-2 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 justify-center"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
+          {referenceProfiles.length > 0 && (
+            <div className="space-y-1.5">
+              {referenceProfiles.map((ref, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 rounded-lg text-xs">
+                  <div className="text-purple-200">
+                    <span className="font-medium">{ref.name}</span>
+                    {ref.url && <span className="text-slate-400 ml-2">{ref.url}</span>}
+                  </div>
+                  <button type="button" onClick={() => setReferenceProfiles(referenceProfiles.filter((_, idx) => idx !== i))} className="text-purple-400 hover:text-white flex-shrink-0">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Funding Stage */}
