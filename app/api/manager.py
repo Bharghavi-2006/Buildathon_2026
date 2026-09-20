@@ -9,6 +9,7 @@ from app.schemas import *
 from app.discovery.service import DiscoveryService, DiscoveryProviderError
 from app.research.service import ResearchService
 from app.policy.engine import PolicyEngine
+from app.fitment.engine import ICPFitmentEngine
 from app.core.config import settings
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
@@ -165,6 +166,31 @@ async def research_prospect(id:str,prospect_id:str,data:ResearchRequestIn=Resear
         record=ProspectResearch(campaign_id=id,prospect_id=prospect_id,**values); db.add(record); await db.flush()
     run.status='COMPLETED'; run.output_data={'tool':'WEB_SEARCH','dronahq_execution_id':result.execution_id,'research_id':record.id,'candidate_status':result.candidate_status}; p.lifecycle_status='RESEARCHED'
     audit(db,'RESEARCH_COMPLETED','prospect_research',record.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id,'run_id':run.id}); await db.commit(); return out(record)
+@router.post('/campaigns/{id}/prospects/{prospect_id}/fitment')
+async def fitment_prospect(id:str,prospect_id:str,data:FitmentRequestIn=FitmentRequestIn(),db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    c=await campaign(id,db)
+    if not await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id)): raise HTTPException(404,'Prospect is not selected for this campaign')
+    research=await db.scalar(select(ProspectResearch).where(ProspectResearch.campaign_id==id,ProspectResearch.prospect_id==prospect_id).order_by(ProspectResearch.updated_at.desc()))
+    if not research: raise HTTPException(409,'Completed research is required before ICP fitment')
+    existing=await db.scalar(select(ProspectFitment).where(ProspectFitment.campaign_id==id,ProspectFitment.prospect_id==prospect_id).order_by(ProspectFitment.updated_at.desc()))
+    if existing and not data.force_refresh and existing.research_id==research.id: return out(existing)
+    allowed=await PolicyEngine().check_agent_execution(db,c,'ICP_FITMENT')
+    if not allowed.allowed: raise HTTPException(409,detail={'code':allowed.rule,'message':allowed.reason})
+    run=AgentRun(campaign_id=id,prospect_id=prospect_id,agent_type='ICP_FITMENT',status='RUNNING',input_data={'research_id':research.id,'engine_version':'icp-fitment-v1','execution_type':'DETERMINISTIC'}); db.add(run); await db.flush()
+    try:
+        setup=await setup_for(c,db); p=await db.get(Prospect,prospect_id)
+        result=ICPFitmentEngine().evaluate({'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size},{'person_research':research.person_research,'company_research':research.company_research,'business_context':research.business_context,'uncertainties':research.uncertainties},{'title':p.title,'industry':p.industry,'location':p.location,'employee_count':p.employee_count},setup.exclusion_criteria)
+    except Exception as exc:
+        run.status='FAILED'; run.output_data={'error':'Fitment evaluation failed','engine_version':'icp-fitment-v1'}; audit(db,'ICP_FITMENT_FAILED','agent_run',run.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id}); await db.commit(); raise HTTPException(422,'Malformed ICP or research data') from exc
+    values={**result,'research_id':research.id}
+    if existing:
+        for key,value in values.items(): setattr(existing,key,value)
+        record=existing
+    else:
+        record=ProspectFitment(campaign_id=id,prospect_id=prospect_id,**values); db.add(record); await db.flush()
+    cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id)); cp.qualification_status=result['overall_fit_status']; cp.qualification_score=result['overall_fit_score']; cp.qualification_reason='; '.join(result['key_fit_signals']+result['key_risk_factors']); cp.current_stage=result['recommended_next_stage']
+    run.status='COMPLETED'; run.output_data={'engine_version':'icp-fitment-v1','research_id':research.id,'fitment_id':record.id,'overall_fit_score':result['overall_fit_score'],'recommended_next_stage':result['recommended_next_stage'],'execution_type':'DETERMINISTIC'}
+    audit(db,'ICP_FITMENT_COMPLETED','prospect_fitment',record.id,{'actor':identity[0].id,'role':'MANAGER','campaign_id':id,'prospect_id':prospect_id,'run_id':run.id,'engine_version':'icp-fitment-v1'}); await db.commit(); return out(record)
 @router.post('/campaigns/{id}/prospects/import')
 async def import_prospects(id:str,data:ProspectImportIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await draft(id,db); ids=[]

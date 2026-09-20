@@ -77,3 +77,9 @@ DRONAHQ_RESEARCH_AGENT_ID=<research-agent-id>
 ```
 
 When those variables are unset, the backend uses deterministic `MockResearchProvider` data for local development and tests. Failed provider calls and malformed responses create a failed `RESEARCH` agent run; no credentials or authorization headers are logged.
+
+## Deterministic ICP Fitment
+
+`POST /api/manager/campaigns/{campaign_id}/prospects/{prospect_id}/fitment` evaluates persisted research with `icp-fitment-v1`; it never calls DronaHQ, an LLM, or web search. DronaHQ owns discovery/research, while FastAPI owns persistence, policy, and repeatable evaluation.
+
+Each configured industry, geography, company-size, target-role, and exclusion criterion is `MATCHED`, `UNMATCHED`, or `UNVERIFIED`. Scores use equal weights: matched = 1, unverified = 0.5, unmatched = 0, multiplied by 100. Exclusions and explicit role mismatches are disqualifying regardless of score. The result includes organization/contact/overall scores, evidence, risks, uncertainties, recommended next stage, and engine version. Repeated calls reuse the current result unless `{"force_refresh": true}` is supplied.
