@@ -1,6 +1,52 @@
 # Autonomous SDR Platform
 
-Policy-controlled, multi-channel SDR backend for the GTM AI Buildathon. PostgreSQL is the transactional source of truth; Neo4j is the relationship intelligence projection. Agents propose actions, but the deterministic policy engine authorizes them.
+Policy-controlled, multi-channel SDR platform for the GTM AI Buildathon: a FastAPI backend (PostgreSQL as the transactional source of truth; Neo4j as an optional relationship-intelligence projection) plus a React/TypeScript manager and representative web workspace. Agents propose actions, but the deterministic policy engine authorizes them — nothing sends without passing through it.
+
+**Live demo:** frontend on Vercel — `https://buildathon-2026-rs1w-zeta.vercel.app` · backend on Render — `https://autonomous-sdr-backend-r696.onrender.com`. Sign in with one of the demo identities below; there is no password, just an identity switcher in the top bar.
+
+## Feature status
+
+This is a buildathon build: some things are fully wired end to end, some are intentionally simplified, and a few are explicitly out of scope. Listed honestly below so it's clear what's demo-ready versus illustrative.
+
+### Fully implemented
+
+**Manager workspace**
+- Dashboard — real campaign table (status, prospects, outreach sent, meetings booked, open conversations), pause/resume toggle, platform-wide alert banner (aging approvals, reps over capacity, suppression/DNC blocks, escalated hurdles), notification bell
+- New Campaign wizard (all steps) — identity, ICP/targeting (incl. exclusion criteria and reference/sample profiles), agent checklist, prospect sourcing (discovery or import, fit scores + conflict/suppression tags, adjustable qualify/reject threshold), channels + prompts, representative assignment (match scoring, daily limits, working hours), pre-launch checklist and activation
+- Campaign Detail — funnel overview, prospects table, team roster (who's working the campaign and which prospect they're each in talks with), open conversations with reply (works even while the campaign is paused), per-agent and per-channel status, sender-bot draft generation buttons
+- Reps roster — capacity meter, skillset/bandwidth filters, per-rep active/paused agent types, assign-to-campaign, capacity alert banner
+- Global Kill Switch — always accessible from the top bar; disables all outbound activity platform-wide, and the representative workspace reflects it immediately
+- Settings — suppression/DNC list (add/remove), notification thresholds (aging + capacity), team & permissions (grant/revoke manager access), read-only guardrails and integration/agent status
+
+**Representative workspace**
+- My Queue header — pending approvals, active conversations, meetings booked, daily sending capacity in the same "units" language as the manager's capacity meter, and per-channel agent status (Email/LinkedIn/SMS/Voice — Live/Paused), scoped to the rep's own assigned campaigns
+- Assigned campaigns bar — paused-by-manager state, an amber "still open, you can reply" tag when a paused campaign has live threads, and a conflict tag when a prospect is also active in another campaign
+- Approval queue — fit score + one-line "why" on every item (the same data the manager saw during sourcing), a conflict badge, a collapsible context drawer (agent, prompt version, RAG context used), Approve / Edit & Approve / Reject-with-reason (reasons feed a fixed, structured vocabulary), batch approve
+- Live conversations — full multi-channel message thread with reply, pause-aware (a paused campaign doesn't cut off an already-open conversation), meeting-intent status syncs live to both rep and manager
+- AI Hurdles — escalation queue materialized from real backend signals (blocked outreach, failed agent runs, aging approvals — never fabricated), diagnostic context, resolve/escalate/attach-knowledge actions, and a recurring-pattern prompt ("this has come up N times this week — flag as a knowledge gap?")
+- Guardrails — read-only, live projection of kill switch, capacity, working hours, channel availability and conflicts, computed from the same tables the policy engine authoritatively checks
+
+**Sender bots & the agent pipeline**
+- Manager-triggered "Generate Drafts" per channel (Email / LinkedIn / SMS) drafts outreach through the same DronaHQ agent pipeline the wizard uses, and queues each draft into the assigned rep's approval queue — nothing bypasses human approval
+- Every agent call falls back to a clearly-labeled demo draft when no live DronaHQ webhook is configured (the expected state for this deployment), so the flow works end to end without external credentials
+- Delivery is channel-aware: approving a draft resolves to the prospect's email, LinkedIn URL, or phone number depending on channel, and every send/block is written to an audit trail (`OutreachEvent`, `DeliveryRecord`)
+
+**Deployment**
+- Frontend on Vercel, backend on Render, with a normalized async-Postgres connection path for managed providers and a SQLite fallback for local dev
+
+### Partially implemented
+
+- **Rep Monitoring** (manager side) — the turnaround/response-rate/meetings-booked numbers are illustrative rather than computed from a real analytics pipeline; the rep status states (Active/Warn/Standby/Critical), aging-queue banner with jump-to-rep, and Adjust Limits modal are real
+- **Reject reasons as a "Coach" signal** — rejections already write to a fixed, structured reason vocabulary (not free text), which is the data a coaching/edit-rate feature would read — but there is no Coach Dashboard or trend-line UI surfacing it
+- **Knowledge-gap flagging** — the rep-side flag action and the count-this-week query are real and persisted; there is no manager-facing surface that reads the flags back yet
+- **Settings' integration/model configuration** — LLM provider, DronaHQ agent status, and demo mode are surfaced read-only; they're environment-variable-driven and not editable from the UI, since a fake editable form wouldn't actually take effect
+
+### Not implemented (explicitly out of scope)
+
+- Full representative offboarding pipeline (leave request → manager approval → auto-reassignment by capacity/expertise → completion)
+- "Autonomous Rebalance Mode" (automatic load redistribution across reps)
+- Real external message transport — every channel (including email) simulates sending and writes a full audit trail, but there is no SMTP/Twilio/LinkedIn API client anywhere in the codebase; delivery is always a policy-governed database write, never a live network call to a provider
+- Background/scheduled automation — there is no job scheduler; draft generation and all agent pipeline stages are triggered synchronously by a manager or rep action, never run autonomously on a timer
 
 ## Run directly with Uvicorn (recommended)
 
@@ -54,6 +100,20 @@ IAM tokens expire after 15 minutes. Generate a new URL/token before a process ne
 ## Optional Docker deployment
 
 Docker Compose is an optional convenience path for a full local PostgreSQL + Neo4j stack. Run `docker compose up --build`; its Compose configuration supplies the container-specific database settings. It is not required for development or deployment.
+
+## Frontend (manager & representative web app)
+
+The `frontend/` directory is a React + TypeScript + Vite app with two workspaces (manager and representative) served from one router, backed entirely by the API above.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+By default it proxies API calls to `http://localhost:8000` for local dev (see `vite.config.ts`). To point it at a deployed backend, set `VITE_API_BASE_URL` (see `frontend/.env.example`) — this is a Vite build-time variable, so it must be set before `npm run build` runs, not just at deploy time. `frontend/vercel.json` configures the SPA rewrite needed for client-side routing on Vercel.
+
+There is no login form — identity is a demo header (`X-User-Email`, see Demo RBAC below) set by an account switcher in the top bar. Pick `manager@demo.local`, `aisha@demo.local`, or `vikram@demo.local` to see the corresponding workspace.
 
 ## Five-minute demo
 
