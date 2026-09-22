@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
-import { ShieldCheck, LogIn, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, LogIn, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
@@ -8,6 +8,7 @@ export const Login: React.FC = () => {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +39,7 @@ export const Login: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-purple-900/40 mb-4">
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Autonomous SDR Platform</h1>
+          <h1 className="text-xl font-serif italic font-medium text-white tracking-tight">Autonomous SDR Platform</h1>
           <p className="text-xs text-slate-500 mt-1">Sign in to your workspace</p>
         </div>
 
@@ -63,14 +64,25 @@ export const Login: React.FC = () => {
             </div>
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-lg bg-[#070811] border border-purple-500/20 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 transition-colors"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 pr-10 rounded-lg bg-[#070811] border border-purple-500/20 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"

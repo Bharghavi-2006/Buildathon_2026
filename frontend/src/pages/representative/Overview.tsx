@@ -30,10 +30,6 @@ export const RepresentativeOverview: React.FC = () => {
   const firstName = (currentUser?.user?.name || '').split(' ')[0];
   const escalated = (hurdles || []).filter((h: any) => h.status !== 'RESOLVED');
   const oldestApproval = (data.approvals || [])[0]?.approval?.created_at;
-  const openConvs = (data.conversations || []).filter((c: any) => c.conversation.status === 'OPEN');
-  const oldestOpenConv = openConvs.length
-    ? openConvs.reduce((min: any, c: any) => (new Date(c.conversation.created_at) < new Date(min.conversation.created_at) ? c : min), openConvs[0]).conversation.created_at
-    : undefined;
   const oldestEscalation = escalated.length
     ? escalated.reduce((min: any, h: any) => (new Date(h.created_at) < new Date(min.created_at) ? h : min), escalated[0]).created_at
     : undefined;
@@ -51,16 +47,11 @@ export const RepresentativeOverview: React.FC = () => {
       {killSwitch?.global_kill_switch && <AlertBanner type="critical" message="All outbound activity has been stopped platform-wide by an administrator." />}
       {atCapacity && <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3 text-sm text-rose-200"><AlertTriangle className="inline w-4 h-4 mr-2" />Daily sending capacity reached: {metrics.capacity_used}/{metrics.capacity_limit} units used.</div>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
           <div className="text-2xl font-bold text-white">{metrics.pending_approvals}</div>
           <div className="text-sm text-slate-300 mt-1">Pending Approvals</div>
           {oldestApproval && <div className="text-[11px] text-rose-300 mt-1.5 font-medium">Oldest: {ageLabel(oldestApproval)}</div>}
-        </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
-          <div className="text-2xl font-bold text-white">{metrics.active_conversations}</div>
-          <div className="text-sm text-slate-300 mt-1">Replies Needing Attention</div>
-          {oldestOpenConv && <div className="text-[11px] text-rose-300 mt-1.5 font-medium">Oldest: {ageLabel(oldestOpenConv)}</div>}
         </div>
         <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
           <div className="text-2xl font-bold text-white">{metrics.meetings_booked}</div>
@@ -74,10 +65,10 @@ export const RepresentativeOverview: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-500/10 bg-[#0d0f22] p-3">
-        <span className="text-[11px] uppercase tracking-wider text-slate-500 mr-1">Agent status</span>
+        <span className="text-[11px] uppercase tracking-wider text-slate-500 mr-1">Channel status</span>
         {metrics.channel_status?.map((c: any) => (
           <span key={c.channel} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${c.live ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300' : 'bg-slate-800/80 border-slate-700/60 text-slate-400'}`}>
-            {CHANNEL_LABEL[c.channel] || c.channel}: {c.live ? 'Live' : 'Paused'}
+            {CHANNEL_LABEL[c.channel] || c.channel}
           </span>
         ))}
       </div>

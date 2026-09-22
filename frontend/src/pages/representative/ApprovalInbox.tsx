@@ -143,7 +143,12 @@ export const RepresentativeApprovalInbox: React.FC = () => {
 
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-          <input type="checkbox" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} className="rounded border-purple-500/30" />
+          <input
+            type="checkbox"
+            checked={filtered.length > 0 && selected.size === filtered.length}
+            onChange={toggleAll}
+            className="appearance-none w-4 h-4 rounded border border-purple-500/30 bg-[#17122F] checked:bg-purple-600 checked:border-purple-600 checked:bg-[url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22M3%208l3%203%207-7%22%2F%3E%3C%2Fsvg%3E')] bg-center bg-no-repeat cursor-pointer transition-colors"
+          />
           Select all
         </label>
         <span className="text-xs text-slate-500">{selected.size > 0 ? `${selected.size} selected` : `${filtered.length} draft${filtered.length === 1 ? '' : 's'}`}</span>

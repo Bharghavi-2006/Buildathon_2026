@@ -19,7 +19,6 @@ import { RepresentativeMonitoring } from '../pages/representative/Monitoring';
 import { RepresentativeConversations } from '../pages/representative/Conversations';
 import { RepresentativeSettings } from '../pages/representative/Settings';
 import { RepresentativeHurdles } from '../pages/representative/Hurdles';
-import { RepresentativeGuardrails } from '../pages/representative/Guardrails';
 import { Home } from '../pages/Home';
 
 export const router = createBrowserRouter([
@@ -57,7 +56,6 @@ export const router = createBrowserRouter([
           { path: 'conversations', element: <RepresentativeConversations /> },
           { path: 'monitoring', element: <RepresentativeMonitoring /> },
           { path: 'hurdles', element: <RepresentativeHurdles /> },
-          { path: 'guardrails', element: <RepresentativeGuardrails /> },
           { path: 'settings', element: <RepresentativeSettings /> },
           { path: '*', element: <Navigate to="/rep" replace /> },
         ],

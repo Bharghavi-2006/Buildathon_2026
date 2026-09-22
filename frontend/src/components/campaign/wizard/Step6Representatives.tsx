@@ -508,7 +508,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
           onClick={onBack}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Channels
+          <ArrowLeft className="w-4 h-4" /> Back to Knowledge Base
         </button>
 
         <button

@@ -6,8 +6,8 @@ import { representativeApi } from '../../api/representative';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
 const CHANNEL_LABEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', message: 'SMS', voice: 'Voice' };
-const AGENT_ORDER = ['DISCOVERY', 'ICP_FITMENT', 'RESEARCH', 'CONVERSATION', 'PERSONALIZATION'];
-const AGENT_LABEL: Record<string, string> = { DISCOVERY: 'Discovery', ICP_FITMENT: 'ICP Fitment', RESEARCH: 'Research', CONVERSATION: 'Conversation', PERSONALIZATION: 'Personalization' };
+const AGENT_ORDER = ['PERSONALIZATION', 'FOLLOW_UP', 'CONVERSATION'];
+const AGENT_LABEL: Record<string, string> = { PERSONALIZATION: 'Personalization', FOLLOW_UP: 'Follow-up', CONVERSATION: 'Conversation' };
 
 const AgentsCell: React.FC<{ enabledAgents: string[] }> = ({ enabledAgents }) => {
   const enabled = AGENT_ORDER.filter((a) => (enabledAgents || []).includes(a));

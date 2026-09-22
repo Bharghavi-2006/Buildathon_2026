@@ -41,7 +41,7 @@ export const RepresentativeMonitoring: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif italic font-semibold text-white tracking-tight">Your Monitoring</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">Your Monitoring</h1>
         <p className="text-sm text-slate-400 mt-1">Your performance across your assigned campaigns this week.</p>
       </div>
 
