@@ -252,7 +252,6 @@ export const Settings: React.FC = () => {
         {integrations ? (
           <div className="text-xs text-slate-300 space-y-2">
             <div className="flex justify-between"><span className="text-slate-500">LLM Provider</span><span>{integrations.llm_provider}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Demo Mode</span><span>{integrations.demo_mode ? 'Enabled' : 'Disabled'}</span></div>
             <div className="pt-2 border-t border-purple-500/10 space-y-1.5">
               {Object.entries(integrations.agents).map(([agent, status]) => (
                 <div key={agent} className="flex justify-between">

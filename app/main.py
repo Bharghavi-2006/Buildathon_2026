@@ -267,13 +267,10 @@ async def rep_batch_approve(data:BatchApprovalIn,db:AsyncSession=Depends(get_ses
         try: results.append({'approval_id':id,**await apply_approval(await rep_approval_or_404(id,user.id,db),user,db)})
         except HTTPException as exc: results.append({'approval_id':id,'allowed':False,'reason_code':'NOT_ELIGIBLE','message':exc.detail})
     return {'approved':sum(x.get('allowed') and not x.get('scheduled') for x in results),'blocked':sum(not x.get('allowed') for x in results),'scheduled':sum(x.get('scheduled',False) for x in results),'results':results}
-@app.get('/api/rep/approvals/{id}/context')
-async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
-    """Collapsible audit-trail context for an approval item: which agent/prompt produced it, and the RAG context available for this campaign."""
-    user,profile=identity
-    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
-    approval=await db.get(ApprovalRequest,id)
-    if not approval or approval.representative_id!=user.id: raise HTTPException(404,'Approval not found in your queue')
+async def approval_context_view(approval,db):
+    """Shared audit-trail context for an approval item (rep and manager review both use this):
+    which agent/prompt produced it, prospect summary, prior research, the full past
+    conversation with this prospect on this campaign (if any), and RAG context available."""
     campaign=await campaign_or_404(approval.campaign_id,db)
     cp=await db.get(CampaignProspect,approval.campaign_prospect_id) if approval.campaign_prospect_id else None
     prospect=await db.get(Prospect,cp.prospect_id) if cp else None
@@ -293,6 +290,11 @@ async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),ident
             if company.employee_count: prospect_summary+=f' ({company.employee_count} FTE)'
         if prospect.industry: prospect_summary+=f'. {prospect.industry}.'
     research=await db.scalar(select(ProspectResearch).where(ProspectResearch.campaign_id==campaign.id,ProspectResearch.prospect_id==prospect.id).order_by(ProspectResearch.updated_at.desc())) if prospect else None
+    conversation=await db.scalar(select(Conversation).where(Conversation.campaign_id==campaign.id,Conversation.prospect_id==prospect.id)) if prospect else None
+    conversation_history=None
+    if conversation:
+        msgs=(await db.scalars(select(Message).where(Message.conversation_id==conversation.id).order_by(Message.created_at.asc()))).all()
+        conversation_history={'id':conversation.id,'status':conversation.status,'messages':[dump(m) for m in msgs]}
     return {
         'agent':(approval.payload or {}).get('agent','PERSONALIZATION'),
         'prompt_version':(approval.payload or {}).get('prompt_version'),
@@ -300,12 +302,46 @@ async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),ident
         'rag_context':rag_context,
         'prospect_summary':prospect_summary,
         'research_snippet':research.research_summary if research else None,
+        'conversation':conversation_history,
     }
+@app.get('/api/rep/approvals/{id}/context')
+async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    approval=await db.get(ApprovalRequest,id)
+    if not approval or approval.representative_id!=user.id: raise HTTPException(404,'Approval not found in your queue')
+    return await approval_context_view(approval,db)
 @app.post('/api/manager/approvals/{id}/approve')
 async def manager_override(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     approval=await db.get(ApprovalRequest,id)
     if not approval or approval.status!='PENDING': raise HTTPException(404,'Pending approval not found')
     return await apply_approval(approval,identity[0],db,override=True)
+@app.post('/api/manager/approvals/{id}/edit-approve')
+async def manager_edit_approve(id:str,data:ApprovalEditIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    approval=await db.get(ApprovalRequest,id)
+    if not approval or approval.status!='PENDING': raise HTTPException(404,'Pending approval not found')
+    if not data.content.strip(): raise HTTPException(422,'Edited message is required')
+    return await apply_approval(approval,identity[0],db,override=True,edited_content=data.content)
+@app.post('/api/manager/approvals/{id}/reject')
+async def manager_reject(id:str,data:ApprovalRejectIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    approval=await db.get(ApprovalRequest,id)
+    if not approval or approval.status!='PENDING': raise HTTPException(404,'Pending approval not found')
+    if data.reason not in ['WRONG_PERSONA','IRRELEVANT_HOOK','WRONG_INFORMATION','DUPLICATE_ACCOUNT','OTHER']: raise HTTPException(422,'Unsupported rejection reason')
+    approval.status='REJECTED'; approval.decided_by_id=identity[0].id; approval.decision_note=data.reason
+    db.add(AuditLog(action='APPROVAL_REJECTED',entity_type='approval',entity_id=id,details={'actor':identity[0].id,'role':'MANAGER','campaign_id':approval.campaign_id,'reason':data.reason,'previous_state':'PENDING','new_state':'REJECTED'})); await db.commit(); return {'status':'REJECTED','reason':data.reason}
+@app.get('/api/manager/approvals/{id}')
+async def manager_approval_detail(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    approval=await db.get(ApprovalRequest,id)
+    if not approval: raise HTTPException(404,'Approval not found')
+    campaign=await campaign_or_404(approval.campaign_id,db)
+    cp=await db.get(CampaignProspect,approval.campaign_prospect_id) if approval.campaign_prospect_id else None
+    prospect=await db.get(Prospect,cp.prospect_id) if cp else None
+    return approval_view(approval,campaign,prospect,cp)
+@app.get('/api/manager/approvals/{id}/context')
+async def manager_approval_context(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    approval=await db.get(ApprovalRequest,id)
+    if not approval: raise HTTPException(404,'Approval not found')
+    return await approval_context_view(approval,db)
 @app.get('/prospects/{id}/conversations')
 async def conversations(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     await prospect_or_404(id,db); return [dump(x) for x in (await db.scalars(select(Conversation).where(Conversation.prospect_id==id))).all()]

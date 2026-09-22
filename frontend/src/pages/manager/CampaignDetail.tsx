@@ -12,7 +12,6 @@ export const CampaignDetail: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'prospects' | 'team' | 'conversations' | 'agents'>('overview');
-  const [demoRecipient, setDemoRecipient] = useState('');
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   const { data: campaign, isLoading: campLoading } = useQuery({
@@ -93,11 +92,6 @@ export const CampaignDetail: React.FC = () => {
     onError: (err: any) => {
       alert(err.message || 'Failed to toggle agent');
     },
-  });
-
-  const demoModeMutation = useMutation({
-    mutationFn: () => campaignsApi.updateDemoMode(id!, { demo_mode: !campaign?.demo_mode, demo_recipient_email: demoRecipient || campaign?.demo_recipient_email }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
   });
 
   const generateDraftsMutation = useMutation({
@@ -186,14 +180,6 @@ export const CampaignDetail: React.FC = () => {
             </span>
           </div>
         )}
-        <div className={`mt-4 p-3 rounded-xl border text-xs flex flex-wrap items-center gap-3 ${campaign.demo_mode ? 'bg-amber-950/30 border-amber-500/40 text-amber-200' : 'bg-emerald-950/20 border-emerald-500/20 text-emerald-200'}`}>
-          <strong>{campaign.demo_mode ? 'DEMO MODE ACTIVE' : 'LIVE DELIVERY'}</strong>
-          {campaign.demo_mode && <span>Outbound email redirects to {campaign.demo_recipient_email}; prospect-specific content is preserved.</span>}
-          <input value={demoRecipient} onChange={(event) => setDemoRecipient(event.target.value)} placeholder="demo-recipient@example.com" className="px-2 py-1 rounded bg-[#070811] border border-purple-500/30 text-white" />
-          <button onClick={() => demoModeMutation.mutate()} disabled={demoModeMutation.isPending || ( !campaign.demo_mode && !(demoRecipient || campaign.demo_recipient_email))} className="px-3 py-1 rounded bg-purple-600 text-white font-semibold disabled:opacity-50">
-            {campaign.demo_mode ? 'Disable Demo Mode' : 'Enable Demo Mode'}
-          </button>
-        </div>
       </div>
 
       {/* Main Tabs Navigation */}

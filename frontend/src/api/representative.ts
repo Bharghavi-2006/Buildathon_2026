@@ -10,6 +10,7 @@ export const representativeApi = {
     agent: string; prompt_version: string | null; agent_run: any;
     rag_context: Array<{ document_id: string; title: string; content: string; category?: string; score?: number }>;
     prospect_summary?: string | null; research_snippet?: string | null;
+    conversation?: { id: string; status: string; messages: Array<{ id: string; direction: string; channel: string; content: string }> } | null;
   }>(`/api/rep/approvals/${id}/context`),
   monitoring: () => apiClient.get<any>('/api/rep/monitoring'),
   campaignDetail: (id: string) => apiClient.get<any>(`/api/rep/campaigns/${id}`),

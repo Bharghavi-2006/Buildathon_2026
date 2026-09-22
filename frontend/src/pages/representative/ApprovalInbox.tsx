@@ -42,6 +42,19 @@ const ContextUsedPanel: React.FC<{ approvalId: string }> = ({ approvalId }) => {
         </div>
       </div>
 
+      {data.conversation && data.conversation.messages?.length > 0 && (
+        <div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Past conversation</div>
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            {data.conversation.messages.map((m: any) => (
+              <div key={m.id} className={`text-xs p-2 rounded ${m.direction === 'INBOUND' ? 'bg-purple-950/30 text-purple-200' : 'bg-[#070811] text-slate-300'}`}>
+                <span className="font-semibold">{m.direction === 'INBOUND' ? 'Prospect' : 'You'}:</span> {m.content}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {data.rag_context.length > 0 && (
         <div>
           <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Knowledge base sources</div>

@@ -117,9 +117,8 @@ export const Step3Agents: React.FC<Step3AgentsProps> = ({
   const enableAllRecommendedMutation = useMutation({
     mutationFn: async () => {
       setErrorMessage(null);
-      // Enable all except VOICE by default
       for (const item of agents) {
-        if (item.agent.agent_type !== 'VOICE' && !item.agent.enabled) {
+        if (!item.agent.enabled) {
           const meta = AGENT_INFO_MAP[item.agent.agent_type] || { defaultResponsibilities: [] };
           await campaignsApi.configureAgent(campaignId, item.agent.id, {
             enabled: true,

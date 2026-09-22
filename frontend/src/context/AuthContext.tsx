@@ -3,19 +3,6 @@ import { CurrentUser } from '../types';
 import { authApi } from '../api/auth';
 import { getActiveUserEmail, setActiveUserEmail } from '../api/client';
 
-export interface DemoAccount {
-  email: string;
-  name: string;
-  role: 'MANAGER' | 'REPRESENTATIVE';
-  desc: string;
-}
-
-export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { email: 'manager@demo.local', name: 'Demo Manager', role: 'MANAGER', desc: 'Campaigns, ICP, settings & team oversight' },
-  { email: 'aisha@demo.local', name: 'Aisha Rep', role: 'REPRESENTATIVE', desc: 'US / SaaS SDR (Campaigns A & C assigned)' },
-  { email: 'vikram@demo.local', name: 'Vikram Rep', role: 'REPRESENTATIVE', desc: 'India / BFSI SDR (Campaign B assigned)' },
-];
-
 interface AuthContextType {
   currentUser: CurrentUser | null;
   activeEmail: string;
