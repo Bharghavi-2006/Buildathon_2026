@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pause, Play, Users, Bot, Layers, MessageSquare, Loader2, Sparkles, AlertCircle, Send, Mail, Linkedin, Phone } from 'lucide-react';
+import { ArrowLeft, Pause, Play, Users, Bot, Layers, MessageSquare, Loader2, Sparkles, AlertCircle, Send, Mail, Linkedin, Phone, ShieldAlert } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
@@ -281,7 +281,7 @@ export const CampaignDetail: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  prospects.map(({ prospect: p, association: a }) => {
+                  prospects.map(({ prospect: p, association: a, conflict }) => {
                     const companyName = p.metadata_?.company_name || p.website || p.industry;
                     return (
                       <tr
@@ -298,6 +298,12 @@ export const CampaignDetail: React.FC = () => {
                         <td className="py-4 px-4">
                           <div className="text-slate-200 text-xs font-medium">{p.title}</div>
                           <div className="text-xs text-slate-400">{companyName}</div>
+                          {conflict && (
+                            <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-rose-950/50 border border-rose-500/30 text-rose-300 text-[10px] font-semibold">
+                              <ShieldAlert className="w-2.5 h-2.5" />
+                              CONFLICT: Active in {conflict.other_campaign_name}
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-4">
                           <span className={`text-xs font-bold ${a.qualification_score >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>

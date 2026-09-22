@@ -71,10 +71,18 @@ const ApprovalContextDrawer: React.FC<{ approvalId: string }> = ({ approvalId })
       {data.agent_run && <div className="text-slate-300"><span className="text-slate-500">Engine:</span> {data.agent_run.engine_version || data.agent_run.provider || data.agent_run.status}</div>}
       {data.rag_context.length > 0 ? (
         <div>
-          <div className="text-slate-500 mb-1">RAG context used:</div>
-          <ul className="space-y-1">
-            {data.rag_context.map((r) => (
-              <li key={r.document_id} className="text-slate-400"><span className="text-slate-300 font-medium">{r.title}:</span> {r.content.slice(0, 140)}{r.content.length > 140 ? '…' : ''}</li>
+          <div className="text-slate-500 mb-1.5 uppercase tracking-wider text-[10px] font-semibold">RAG context used</div>
+          <ul className="space-y-1.5">
+            {data.rag_context.map((r: any) => (
+              <li key={r.document_id} className="text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-emerald-400">✓</span>
+                  <span className="text-slate-200 font-medium">{r.title}</span>
+                  {typeof r.score === 'number' && <span className="text-[10px] text-slate-500">relevance {r.score}</span>}
+                  <span className="text-[10px] text-slate-600 font-mono ml-auto">{r.document_id.slice(0, 8)}</span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 ml-5">{r.content.slice(0, 140)}{r.content.length > 140 ? '…' : ''}</div>
+              </li>
             ))}
           </ul>
         </div>

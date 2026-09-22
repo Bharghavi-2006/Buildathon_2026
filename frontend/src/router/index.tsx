@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AppLayout } from '../components/layout/AppLayout';
+import { ProtectedRoute } from '../components/layout/ProtectedRoute';
+import { Login } from '../pages/Login';
 import { Dashboard } from '../pages/manager/Dashboard';
 import { CampaignDetail } from '../pages/manager/CampaignDetail';
 import { ProspectDetail } from '../pages/manager/ProspectDetail';
@@ -15,8 +16,12 @@ import { Home } from '../pages/Home';
 
 export const router = createBrowserRouter([
   {
+    path: 'login',
+    element: <Login />,
+  },
+  {
     path: '/',
-    element: <AppLayout />,
+    element: <ProtectedRoute />,
     children: [
       {
         index: true,

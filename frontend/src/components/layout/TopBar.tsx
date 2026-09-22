@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, ShieldCheck, UserCheck, Bell, ChevronDown } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, UserCheck, Bell, ChevronDown, LogOut } from 'lucide-react';
 import { controlApi } from '../../api/control';
 import { campaignsApi } from '../../api/campaigns';
 import { useAuth, DEMO_ACCOUNTS } from '../../context/AuthContext';
 
 export const TopBar: React.FC = () => {
-  const { currentUser, activeEmail, switchUser, role } = useAuth();
+  const { currentUser, activeEmail, switchUser, logout, role } = useAuth();
   const navigate = useNavigate();
   const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
   const [killLoading, setKillLoading] = useState<boolean>(false);
@@ -202,6 +202,19 @@ export const TopBar: React.FC = () => {
                       </div>
                     </button>
                   ))}
+                </div>
+                <div className="border-t border-purple-500/10 mt-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      logout();
+                      navigate('/login');
+                    }}
+                    className="w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 text-rose-300 hover:bg-rose-950/30"
+                  >
+                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                    <span className="font-semibold">Log out</span>
+                  </button>
                 </div>
               </div>
             )}

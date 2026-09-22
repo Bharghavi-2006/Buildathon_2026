@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.dronahq.registry import agent_registry, run_agent, public_agent_status
 from app.hurdles.service import ensure_hurdles
 from app.delivery.service import CHANNEL_RECIPIENT_FIELD
+from app.rag.retriever import SimpleRetriever
 
 router=APIRouter(prefix='/api/manager',tags=['manager'])
 def out(x): return {a.key:getattr(x,a.key) for a in __import__('sqlalchemy').inspect(x).mapper.column_attrs}
@@ -287,6 +288,39 @@ async def run_pipeline_agent(id:str,prospect_id:str,stage:str,db:AsyncSession=De
     elif stage=='conversation': cp.current_stage='CONVERSATION_ANALYZED'
     else: cp.current_stage='FOLLOW_UP_RECOMMENDED'
     await db.commit(); return {'run_id':run.id,'stage':cp.current_stage,'result':result}
+@router.post('/campaigns/{id}/prospects/{prospect_id}/demo-voice-call')
+async def demo_voice_call(id:str,prospect_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Simulated Voice SDR call -- explicitly DEMO/SIMULATED, never a real telephony call.
+    Reuses the same PolicyEngine, Conversation, Message, and AgentRun models as every other
+    channel: a blocked call is recorded exactly like a blocked email or LinkedIn send, not a
+    parallel voice-only code path."""
+    c=await campaign(id,db); p=await db.get(Prospect,prospect_id)
+    if not p: raise HTTPException(404,'Prospect not found')
+    if not await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==prospect_id)): raise HTTPException(404,'Prospect is not part of this campaign')
+    policy=await PolicyEngine().check(db,c,prospect_id,'voice')
+    if not policy.allowed:
+        db.add(AgentRun(campaign_id=id,prospect_id=prospect_id,agent_type='VOICE',status='FAILED',output_data={'call_status':'BLOCKED','policy_rule':policy.rule,'reason':policy.reason}))
+        await db.commit()
+        raise HTTPException(409,detail={'code':policy.rule,'message':policy.reason})
+    company_name=(p.metadata_ or {}).get('company_name') or p.website or p.industry
+    opening=f"Hi, this is the SDR assistant calling on behalf of our team about {company_name}. Is now a good time?"
+    reply="Yes, I have a few questions about the platform."
+    followup="Sure. What would you like to know?"
+    conversation=await db.scalar(select(Conversation).where(Conversation.campaign_id==id,Conversation.prospect_id==prospect_id))
+    if not conversation: conversation=Conversation(campaign_id=id,prospect_id=prospect_id); db.add(conversation); await db.flush()
+    conversation.status='MEETING_INTENT' if conversation.status!='MEETING_INTENT' else conversation.status
+    db.add(Message(conversation_id=conversation.id,direction='OUTBOUND',channel='voice',content=opening))
+    db.add(Message(conversation_id=conversation.id,direction='INBOUND',channel='voice',content=reply))
+    db.add(Message(conversation_id=conversation.id,direction='OUTBOUND',channel='voice',content=followup))
+    output={'call_status':'DEMO_CONNECTED','transcript':[{'speaker':'AI','text':opening},{'speaker':'Prospect','text':reply},{'speaker':'AI','text':followup}],'intent':'INTERESTED','outcome':'FOLLOW_UP_REQUIRED','policy':'ALLOW','human_escalation':False}
+    run=AgentRun(campaign_id=id,prospect_id=prospect_id,agent_type='VOICE',status='COMPLETED',output_data=output)
+    db.add(run)
+    await db.flush()
+    db.add(OutreachEvent(campaign_id=id,prospect_id=prospect_id,channel='voice',status='SENT',content='Simulated voice call: intent=INTERESTED, outcome=FOLLOW_UP_REQUIRED'))
+    audit(db,'DEMO_VOICE_CALL','agent_run',run.id,{'actor':identity[0].id,'campaign_id':id,'prospect_id':prospect_id})
+    await db.commit()
+    return {'conversation_id':conversation.id,**output}
+
 @router.post('/campaigns/{id}/generate-drafts')
 async def generate_drafts(id:str,data:GenerateDraftsIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     """Channel-specific outreach 'sender bot': drafts a personalized message for each
@@ -308,7 +342,11 @@ async def generate_drafts(id:str,data:GenerateDraftsIn,db:AsyncSession=Depends(g
         if await db.scalar(select(ApprovalRequest).where(ApprovalRequest.campaign_prospect_id==cp.id,ApprovalRequest.status=='PENDING')): skipped.append({'prospect_id':p.id,'reason':'Already has a pending draft'}); continue
         assignment=await db.scalar(select(LeadAssignment).where(LeadAssignment.campaign_prospect_id==cp.id,LeadAssignment.status=='ASSIGNED'))
         if not assignment: skipped.append({'prospect_id':p.id,'reason':'No representative assigned to this lead'}); continue
-        payload=jsonable_encoder({'campaign':out(c),'prospect':out(p),'channel':channel})
+        # Retrieved BEFORE generation and persisted on the approval below, so the
+        # approval drawer shows exactly what was used at draft time -- never a live
+        # re-query that could drift from what the draft was actually generated with.
+        rag_context=await SimpleRetriever().retrieve(db,f'{c.instructions} {p.industry} {p.title}',campaign_id=id)
+        payload=jsonable_encoder({'campaign':out(c),'prospect':out(p),'channel':channel,'rag_context':rag_context})
         run=AgentRun(campaign_id=id,prospect_id=p.id,agent_type='PERSONALIZATION',status='RUNNING',input_data=payload); db.add(run); await db.flush()
         try:
             raw=await run_agent('personalization',payload)
@@ -318,7 +356,7 @@ async def generate_drafts(id:str,data:GenerateDraftsIn,db:AsyncSession=Depends(g
         body=result.get('draft',result.get('body','')) if isinstance(result,dict) else ''
         if not body: run.status='FAILED'; run.output_data={'error':'Agent returned no draft'}; skipped.append({'prospect_id':p.id,'reason':'Agent returned no draft'}); continue
         run.status='COMPLETED'; run.output_data=result
-        db.add(ApprovalRequest(campaign_id=id,campaign_prospect_id=cp.id,representative_id=assignment.representative_id,request_type='OUTREACH',payload={'channel':channel,'subject':result.get('subject',''),'message':body,'agent':'PERSONALIZATION','agent_run_id':run.id}))
+        db.add(ApprovalRequest(campaign_id=id,campaign_prospect_id=cp.id,representative_id=assignment.representative_id,request_type='OUTREACH',payload={'channel':channel,'subject':result.get('subject',''),'message':body,'agent':'PERSONALIZATION','agent_run_id':run.id,'rag_context':rag_context}))
         cp.current_stage='PENDING_APPROVAL'; drafted.append(p.id)
     audit(db,'DRAFTS_GENERATED','campaign',id,{'actor':identity[0].id,'channel':channel,'drafted':len(drafted),'skipped':len(skipped)})
     await db.commit(); return {'channel':channel,'drafted':drafted,'skipped':skipped}

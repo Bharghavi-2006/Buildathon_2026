@@ -24,17 +24,17 @@ async def test_full_new_campaign_wizard_flow():
         dash_data = dash_res.json()
         assert 'campaigns' in dash_data
         camp_names = [c['name'] for c in dash_data['campaigns']]
+        assert 'US Enterprise SaaS Engineering Leaders' in camp_names
         assert 'US SaaS Enterprise CTOs' in camp_names
-        assert 'India BFSI Digital Leaders' in camp_names
-        assert 'AI Infrastructure Scale-up' in camp_names
+        assert 'India BFSI Digital Transformation Leaders' in camp_names
 
         # Check seeded statuses
+        seeded_hero = next(c for c in dash_data['campaigns'] if c['name'] == 'US Enterprise SaaS Engineering Leaders')
+        assert seeded_hero['status'] == 'LIVE'
         seeded_a = next(c for c in dash_data['campaigns'] if c['name'] == 'US SaaS Enterprise CTOs')
         assert seeded_a['status'] == 'LIVE'
-        seeded_b = next(c for c in dash_data['campaigns'] if c['name'] == 'India BFSI Digital Leaders')
+        seeded_b = next(c for c in dash_data['campaigns'] if c['name'] == 'India BFSI Digital Transformation Leaders')
         assert seeded_b['status'] == 'PAUSED'
-        seeded_c = next(c for c in dash_data['campaigns'] if c['name'] == 'AI Infrastructure Scale-up')
-        assert seeded_c['status'] == 'LIVE'
 
         # Get available managers for Step 1
         mgr_res = await client.get('/team/managers', headers=headers)

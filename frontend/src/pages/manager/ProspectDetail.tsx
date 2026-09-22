@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Bot, Sparkles, Building2, User, Loader2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Bot, Sparkles, Building2, User, Loader2, Phone } from 'lucide-react';
 import { prospectsApi } from '../../api/prospects';
+import { campaignsApi } from '../../api/campaigns';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
 export const ProspectDetail: React.FC = () => {
@@ -54,6 +55,13 @@ export const ProspectDetail: React.FC = () => {
     onError: (err: any) => {
       alert(err.message || 'Fitment evaluation failed');
     },
+  });
+
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceCallMutation = useMutation({
+    mutationFn: () => campaignsApi.simulateVoiceCall(campaignId!, prospectId!),
+    onSuccess: () => setVoiceError(null),
+    onError: (err: any) => setVoiceError(err.message || 'Voice call simulation failed'),
   });
 
   if (pLoading || !prospect) {
@@ -359,6 +367,63 @@ export const ProspectDetail: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Voice SDR -- explicitly simulated, never a real telephony call */}
+      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-500/10">
+          <div className="flex items-center gap-2 text-sm font-bold text-white">
+            <Phone className="w-4 h-4 text-indigo-400" />
+            Voice SDR
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/50 border border-amber-500/30 text-amber-300 uppercase tracking-wider">Simulated / Demo</span>
+          </div>
+          <button
+            onClick={() => voiceCallMutation.mutate()}
+            disabled={voiceCallMutation.isPending}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold transition-all"
+          >
+            {voiceCallMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Phone className="w-3.5 h-3.5" />}
+            {voiceCallMutation.isPending ? 'Placing simulated call…' : 'Simulate Voice Call'}
+          </button>
+        </div>
+        {voiceError && (
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-rose-950/30 border border-rose-500/30 text-rose-300 text-xs mb-3">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {voiceError}
+          </div>
+        )}
+        {voiceCallMutation.data ? (
+          <div className="space-y-4 text-xs">
+            <div className="space-y-2">
+              {voiceCallMutation.data.transcript.map((line, idx) => (
+                <div key={idx} className={`max-w-[85%] rounded-lg px-3 py-2 ${line.speaker === 'AI' ? 'bg-indigo-950/40 text-indigo-100' : 'bg-[#12152d] text-slate-200 ml-auto'}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{line.speaker}</div>
+                  {line.text}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Intent</div>
+                <div className="text-emerald-300 font-semibold">{voiceCallMutation.data.intent}</div>
+              </div>
+              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Outcome</div>
+                <div className="text-amber-300 font-semibold">{voiceCallMutation.data.outcome}</div>
+              </div>
+              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Policy</div>
+                <div className="text-emerald-300 font-semibold">{voiceCallMutation.data.policy}</div>
+              </div>
+              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Human Escalation</div>
+                <div className="text-slate-300 font-semibold">{voiceCallMutation.data.human_escalation ? 'YES' : 'NO'}</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-slate-500 text-xs">No simulated call yet for this prospect. This creates real Conversation/Message/AgentRun records gated by the same PolicyEngine as every other channel -- no real phone call is placed.</p>
+        )}
       </div>
     </div>
   );

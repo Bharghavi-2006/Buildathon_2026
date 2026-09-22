@@ -24,6 +24,8 @@ interface AuthContextType {
   error: string | null;
   switchUser: (email: string) => Promise<void>;
   refreshAuth: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,7 +60,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    fetchIdentity(activeEmail);
+    // No stored identity means nobody has logged in yet -- land on /login instead of
+    // silently authenticating, rather than calling /me with an empty header.
+    if (activeEmail) fetchIdentity(activeEmail);
+    else setLoading(false);
   }, []);
 
   const switchUser = async (email: string) => {
@@ -67,6 +72,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshAuth = async () => {
     await fetchIdentity(activeEmail);
+  };
+
+  const login = async (email: string, password: string) => {
+    await authApi.demoLogin(email, password);
+    await fetchIdentity(email.trim().toLowerCase());
+  };
+
+  const logout = () => {
+    setActiveUserEmail('');
+    setActiveEmail('');
+    setCurrentUser(null);
+    setError(null);
   };
 
   return (
@@ -79,6 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         switchUser,
         refreshAuth,
+        login,
+        logout,
       }}
     >
       {children}
