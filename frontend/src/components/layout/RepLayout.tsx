@@ -17,7 +17,7 @@ const RepSidebar: React.FC<{ pendingApprovals: number; escalatedHurdles: number 
   const displayName = currentUser?.user?.name || 'Loading…';
 
   return (
-    <aside className="w-60 bg-[#0c0e1f] border-r border-purple-500/10 flex flex-col justify-between p-4 h-screen sticky top-0 flex-shrink-0 z-20">
+    <aside className="w-60 bg-[#0c0e1f] border-r border-[#35285E] flex flex-col justify-between p-4 h-screen sticky top-0 flex-shrink-0 z-20">
       <div>
         <div className="flex items-center gap-3 px-2 py-3 mb-6">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center font-bold text-white shadow-md shadow-purple-900/30">
@@ -43,7 +43,7 @@ const RepSidebar: React.FC<{ pendingApprovals: number; escalatedHurdles: number 
           </NavLink>
         </nav>
       </div>
-      <div className="pt-6 border-t border-purple-500/10">
+      <div className="pt-6 border-t border-[#35285E]">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-2">Workspace</div>
         <div className="space-y-1">
           <NavLink to="/rep/settings" className={navLinkClass}><Settings className="w-4 h-4" />Settings</NavLink>
@@ -71,7 +71,7 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
   const name = currentUser?.user?.name || 'Representative';
 
   return (
-    <header className="h-16 border-b border-purple-500/10 bg-[#211A38] px-6 flex items-center justify-end gap-3 sticky top-0 z-30">
+    <header className="h-16 border-b border-[#35285E] bg-[#211A38] px-6 flex items-center justify-end gap-3 sticky top-0 z-30">
       <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-200' : 'bg-[#12152d] border-purple-500/20 text-slate-200'}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         {used} / {limit} capacity
