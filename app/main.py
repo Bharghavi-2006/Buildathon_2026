@@ -284,11 +284,22 @@ async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),ident
     # older approvals seeded/created before that persistence existed.
     persisted_rag=(approval.payload or {}).get('rag_context')
     rag_context=persisted_rag if persisted_rag is not None else await SimpleRetriever().retrieve(db,f"{campaign.instructions} {prospect.industry if prospect else ''}",campaign_id=campaign.id)
+    company=await db.get(Company,prospect.company_id) if prospect and prospect.company_id else None
+    prospect_summary=None
+    if prospect:
+        prospect_summary=prospect.title or 'Contact'
+        if company:
+            prospect_summary+=f' at {company.name}'
+            if company.employee_count: prospect_summary+=f' ({company.employee_count} FTE)'
+        if prospect.industry: prospect_summary+=f'. {prospect.industry}.'
+    research=await db.scalar(select(ProspectResearch).where(ProspectResearch.campaign_id==campaign.id,ProspectResearch.prospect_id==prospect.id).order_by(ProspectResearch.updated_at.desc())) if prospect else None
     return {
         'agent':(approval.payload or {}).get('agent','PERSONALIZATION'),
         'prompt_version':(approval.payload or {}).get('prompt_version'),
         'agent_run':{'id':agent_run.id,'status':agent_run.status,'engine_version':(agent_run.output_data or {}).get('engine_version'),'dronahq_execution_id':(agent_run.output_data or {}).get('dronahq_execution_id'),'provider':(agent_run.output_data or {}).get('provider')} if agent_run else None,
         'rag_context':rag_context,
+        'prospect_summary':prospect_summary,
+        'research_snippet':research.research_summary if research else None,
     }
 @app.post('/api/manager/approvals/{id}/approve')
 async def manager_override(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
@@ -552,6 +563,60 @@ async def demo_login(data: DemoLoginIn, db: AsyncSession = Depends(get_session))
 # Representative workspace: everything is filtered through lead/campaign assignments.
 @app.get('/me')
 async def me(identity=Depends(current_identity)): return {'user':dump(identity[0]),'role':identity[1].role,'profile':dump(identity[1])}
+@app.get('/api/rep/campaigns/{id}')
+async def rep_campaign_detail(id:str,db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    """Rep-scoped read model for a single campaign's detail page — everything a rep needs to
+    understand a campaign they're assigned to, without the manager-only edit/pause authority."""
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    campaign=await campaign_or_404(id,db)
+    assignment=await db.scalar(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.representative_id==user.id,CampaignAssignment.active==True))
+    if not assignment: raise HTTPException(403,'You are not assigned to this campaign')
+    setup=await db.scalar(select(CampaignSetup).where(CampaignSetup.campaign_id==id))
+    owner=await db.get(User,setup.owner_id) if setup else None
+    cps=(await db.scalars(select(CampaignProspect).where(CampaignProspect.campaign_id==id))).all()
+    discovered=len(cps)
+    researched=sum(1 for cp in cps if cp.current_stage!='DISCOVERED')
+    qualified=sum(1 for cp in cps if cp.qualification_status=='QUALIFIED')
+    contacted=sum(1 for cp in cps if cp.last_contacted_at is not None)
+    conversations=(await db.scalars(select(Conversation).where(Conversation.campaign_id==id))).all()
+    conv_ids=[c.id for c in conversations]
+    messages=(await db.scalars(select(Message).where(Message.conversation_id.in_(conv_ids)))).all() if conv_ids else []
+    engaged=len({m.conversation_id for m in messages if m.direction=='INBOUND'})
+    meetings=sum(1 for c in conversations if c.status=='MEETING_INTENT')
+    outbound=[m for m in messages if m.direction=='OUTBOUND']; inbound=[m for m in messages if m.direction=='INBOUND']
+    channel_counts:dict={}
+    for m in outbound: channel_counts[m.channel]=channel_counts.get(m.channel,0)+1
+    prompt=await db.scalar(select(PromptVersion).where(PromptVersion.agent_type=='PERSONALIZATION',PromptVersion.configuration['campaign_id'].as_string()==id,PromptVersion.active==True).order_by(PromptVersion.created_at.desc()))
+    enabled_agents=[a.agent_type for a in (await db.scalars(select(CampaignAgent).where(CampaignAgent.campaign_id==id,CampaignAgent.enabled==True))).all()]
+    assignments=(await db.scalars(select(CampaignAssignment).where(CampaignAssignment.campaign_id==id,CampaignAssignment.active==True))).all()
+    team=[]
+    for a in assignments:
+        rep_user=await db.get(User,a.representative_id)
+        lead_count=await db.scalar(select(func.count()).select_from(LeadAssignment).join(CampaignProspect,LeadAssignment.campaign_prospect_id==CampaignProspect.id).where(CampaignProspect.campaign_id==id,LeadAssignment.representative_id==a.representative_id,LeadAssignment.status=='ASSIGNED')) or 0
+        team.append({'representative':{'id':rep_user.id,'name':rep_user.name,'email':rep_user.email},'assigned_leads':lead_count,'daily_send_limit':a.daily_send_limit,'is_you':rep_user.id==user.id})
+    days_live=max(0,(datetime.utcnow()-campaign.created_at).days)
+    return {
+        'campaign':dump(campaign),
+        'owner_name':owner.name if owner else None,
+        'days_live':days_live,
+        'funnel':[
+            {'stage':'Discovered','count':discovered},
+            {'stage':'Researched','count':researched},
+            {'stage':'Qualified','count':qualified},
+            {'stage':'Contacted','count':contacted},
+            {'stage':'Engaged','count':engaged},
+            {'stage':'Meeting','count':meetings},
+        ],
+        'messages_sent':len(outbound),
+        'positive_replies':len(inbound),
+        'meetings_booked':meetings,
+        'channel_breakdown':[{'channel':ch,'count':c} for ch,c in channel_counts.items()],
+        'prompt_version':{'version':prompt.version,'description':prompt.prompt_text} if prompt else None,
+        'approval_required':campaign.approval_required,
+        'enabled_agents':enabled_agents,
+        'team':team,
+    }
 @app.get('/api/rep/workspace')
 async def rep_workspace(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
     """Single representative-scoped read model for the SDR workspace."""
