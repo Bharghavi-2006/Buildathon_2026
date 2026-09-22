@@ -104,7 +104,8 @@ async def create_prospect(data:ProspectIn,db:AsyncSession=Depends(get_session),i
 async def get_prospect(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)): return dump(await prospect_or_404(id,db))
 @app.get('/campaigns/{id}/prospects')
 async def campaign_prospects(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    await campaign_or_404(id,db); rows=(await db.execute(select(CampaignProspect,Prospect).join(Prospect).where(CampaignProspect.campaign_id==id))).all(); return [{'association':dump(a),'prospect':dump(p)} for a,p in rows]
+    await campaign_or_404(id,db); rows=(await db.execute(select(CampaignProspect,Prospect).join(Prospect).where(CampaignProspect.campaign_id==id))).all()
+    return [{'association':dump(a),'prospect':dump(p),'conflict':await prospect_conflict(db,p.id,id)} for a,p in rows]
 @app.get('/campaigns/{id}/pipeline')
 async def campaign_pipeline(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
     """Manager observability view assembled from the source-of-truth records."""
@@ -151,7 +152,7 @@ async def execute(campaign_id,stage,db):
         q=qualify(p,campaign,facts)
         if not q.qualified: out={'skipped':'not qualified'}
         else:
-          s=strategy(p,campaign); k=await SimpleRetriever().retrieve(db,campaign.instructions+' '+p.industry); msg=personalize(p,campaign,facts,k,s.channel); policy=await PolicyEngine().check(db,campaign,p.id,msg.channel)
+          s=strategy(p,campaign); k=await SimpleRetriever().retrieve(db,campaign.instructions+' '+p.industry,campaign_id=campaign.id); msg=personalize(p,campaign,facts,k,s.channel); policy=await PolicyEngine().check(db,campaign,p.id,msg.channel)
           out={'research':{'agent':'RESEARCH','status':'SKIPPED','reason':'AGENT_DISABLED'} if research_unavailable else {'status':'AVAILABLE'},'qualification':q.model_dump(),'strategy':s.model_dump(),'message':msg.model_dump(),'policy':policy.model_dump()}
           # Generation is never delivery. Every generated outbound message enters
           # the existing approval queue, including demo campaigns.
@@ -278,7 +279,11 @@ async def rep_approval_context(id:str,db:AsyncSession=Depends(get_session),ident
     prospect=await db.get(Prospect,cp.prospect_id) if cp else None
     agent_run_id=(approval.payload or {}).get('agent_run_id')
     agent_run=await db.get(AgentRun,agent_run_id) if agent_run_id else None
-    rag_context=await SimpleRetriever().retrieve(db,f"{campaign.instructions} {prospect.industry if prospect else ''}")
+    # Prefer the RAG context actually retrieved and persisted at generation time (see
+    # generate_drafts in app/api/manager.py); a live re-query is only a fallback for
+    # older approvals seeded/created before that persistence existed.
+    persisted_rag=(approval.payload or {}).get('rag_context')
+    rag_context=persisted_rag if persisted_rag is not None else await SimpleRetriever().retrieve(db,f"{campaign.instructions} {prospect.industry if prospect else ''}",campaign_id=campaign.id)
     return {
         'agent':(approval.payload or {}).get('agent','PERSONALIZATION'),
         'prompt_version':(approval.payload or {}).get('prompt_version'),
@@ -514,6 +519,36 @@ async def representative_monitoring(db:AsyncSession=Depends(get_session),identit
         rep['paused_agent_types']=sorted({a.agent_type for a in agent_rows if not a.enabled} - set(rep['active_agent_types']))
     return reps
 
+# Demo authentication boundary: a fixed password map around the existing X-User-Email
+# RBAC. This is explicitly NOT JWT/OIDC/production auth -- it exists only so a buildathon
+# demo has a real login screen instead of a bare identity switcher. Every authorization
+# check downstream of login is unchanged: the frontend still sends X-User-Email, and
+# current_identity/require_manager still gate every route exactly as before.
+DEMO_LOGIN_PASSWORDS = {
+    'manager@demo.local': 'manager123',
+    'aisha@demo.local': 'aisha123',
+    'vikram@demo.local': 'vikram123',
+}
+@app.post('/auth/demo-login')
+async def demo_login(data: DemoLoginIn, db: AsyncSession = Depends(get_session)):
+    email = data.email.strip().lower()
+    expected_password = DEMO_LOGIN_PASSWORDS.get(email)
+    if not expected_password or data.password != expected_password:
+        raise HTTPException(401, 'Invalid email or password')
+    user = await db.scalar(select(User).where(User.email == email))
+    profile = await db.scalar(select(AccessProfile).where(AccessProfile.user_id == user.id, AccessProfile.active == True)) if user else None
+    if not user or not profile:
+        raise HTTPException(401, 'Invalid email or password')
+    return {
+        'authenticated': True,
+        'user': {
+            'email': user.email,
+            'name': user.name,
+            'role': profile.role.lower(),
+            'representative_id': user.id if profile.role == 'REPRESENTATIVE' else None,
+        },
+    }
+
 # Representative workspace: everything is filtered through lead/campaign assignments.
 @app.get('/me')
 async def me(identity=Depends(current_identity)): return {'user':dump(identity[0]),'role':identity[1].role,'profile':dump(identity[1])}
@@ -605,7 +640,7 @@ async def rep_hurdle_detail(id:str,db:AsyncSession=Depends(get_session),identity
     messages=(await db.scalars(select(Message).where(Message.conversation_id==conversation.id).order_by(Message.created_at.desc()).limit(5))).all() if conversation else []
     agent_run=await db.get(AgentRun,h.agent_run_id) if h.agent_run_id else None
     if not agent_run and h.prospect_id: agent_run=await db.scalar(select(AgentRun).where(AgentRun.campaign_id==h.campaign_id,AgentRun.prospect_id==h.prospect_id,AgentRun.agent_type.in_(['PERSONALIZATION','personalization'])).order_by(AgentRun.created_at.desc()))
-    rag_context=await SimpleRetriever().retrieve(db,f'{campaign.instructions} {h.reason}')
+    rag_context=await SimpleRetriever().retrieve(db,f'{campaign.instructions} {h.reason}',campaign_id=campaign.id)
     week_ago=datetime.utcnow()-timedelta(days=7)
     recurring_count=await db.scalar(select(func.count()).select_from(Hurdle).where(Hurdle.category==h.category,Hurdle.campaign_id==h.campaign_id,Hurdle.created_at>week_ago)) or 0
     already_flagged=bool(await db.scalar(select(KnowledgeGapFlag).where(KnowledgeGapFlag.campaign_id==h.campaign_id,KnowledgeGapFlag.category==h.category,KnowledgeGapFlag.created_at>week_ago)))

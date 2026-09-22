@@ -109,6 +109,7 @@ export interface CampaignProspectItem {
     campaign_specific_context?: Record<string, any>;
   };
   prospect: Prospect;
+  conflict?: { other_campaign_id: string; other_campaign_name: string } | null;
 }
 
 export interface IcpEvidence {

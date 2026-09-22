@@ -264,4 +264,13 @@ export const campaignsApi = {
   generateDrafts: async (id: string, channel: 'email' | 'linkedin' | 'sms', limit: number = 10): Promise<{ channel: string; drafted: string[]; skipped: Array<{ prospect_id: string; reason: string }> }> => {
     return await apiClient.post(`/api/manager/campaigns/${id}/generate-drafts`, { channel, limit });
   },
+
+  // Simulated Voice SDR call -- explicitly DEMO/SIMULATED, never a real telephony call.
+  simulateVoiceCall: async (campaignId: string, prospectId: string): Promise<{
+    conversation_id: string; call_status: string;
+    transcript: Array<{ speaker: string; text: string }>;
+    intent: string; outcome: string; policy: string; human_escalation: boolean;
+  }> => {
+    return await apiClient.post(`/api/manager/campaigns/${campaignId}/prospects/${prospectId}/demo-voice-call`);
+  },
 };

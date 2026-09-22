@@ -2,13 +2,16 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-let currentEmail: string = localStorage.getItem('sdr_user_email') || 'manager@demo.local';
+// No default identity: an empty string means "not logged in yet", so the app lands on
+// the login page instead of silently authenticating as the manager demo account.
+let currentEmail: string = localStorage.getItem('sdr_user_email') || '';
 
 export const getActiveUserEmail = (): string => currentEmail;
 
 export const setActiveUserEmail = (email: string): void => {
   currentEmail = email;
-  localStorage.setItem('sdr_user_email', email);
+  if (email) localStorage.setItem('sdr_user_email', email);
+  else localStorage.removeItem('sdr_user_email');
 };
 
 const axiosInstance: AxiosInstance = axios.create({
