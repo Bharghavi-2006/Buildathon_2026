@@ -24,10 +24,64 @@ HERO_HOURS = {'timezone': HERO_TIMEZONE, 'start': 0, 'end': 24}
 DEMO_RECIPIENT_EMAIL = 'ch24b007@smail.iitm.ac.in'
 
 
+async def ensure_approval_inbox_demo(db):
+    """Add durable, screenshot-inspired review examples without duplicating them."""
+    aisha = await db.scalar(select(User).where(User.email == 'aisha@demo.local'))
+    if not aisha:
+        return
+    existing = (await db.scalars(select(ApprovalRequest).where(ApprovalRequest.representative_id == aisha.id))).all()
+    if any((approval.payload or {}).get('demo_inbox_sample') for approval in existing):
+        return
+
+    assignment = await db.scalar(select(CampaignAssignment).where(
+        CampaignAssignment.representative_id == aisha.id,
+        CampaignAssignment.active == True,
+    ))
+    if not assignment:
+        return
+    campaign = await db.get(Campaign, assignment.campaign_id)
+    if not campaign:
+        return
+
+    samples = [
+        ('Sarah', 'Whitefield', 'VP Revenue Operations', 'Glide Systems', 'B2B SaaS', 'sarah.whitefield@glidesystems.example', 'email', 'Mid-market SaaS Expansion', 'Hi Elena — noticed Northstar is adding three SDR territories. How are you balancing capacity today?', 'Glide Systems is expanding revenue operations across three new SDR territories and evaluating ways to reduce manual routing.'),
+        ('Jennifer', 'Park', 'VP Sales', 'SecureStack', 'Enterprise Security', 'jennifer.park@securestack.example', 'linkedin', 'Enterprise Security Push', "Great timing. We're actually reviewing this now; manual routing is getting painful.", 'SecureStack is reviewing its enterprise security workflow and has flagged manual lead routing as an operational bottleneck.'),
+        ('David', 'Okkafor', 'Director of Sales Ops', 'Mergeflow', 'B2B SaaS', 'david.okkafor@mergeflow.example', 'voice', 'Enterprise Security Push', 'Could you send the integration overview and some times for Thursday?', 'Mergeflow is consolidating sales operations tooling and evaluating integration requirements before scheduling a technical review.'),
+        ('Thomas', 'Reyes', 'Head of RevOps', 'Cadence Cloud', 'B2B SaaS', 'thomas.reyes@cadencecloud.example', 'linkedin', 'Mid-market SaaS Expansion', 'Following up on my note from last week. I know Q3 planning is in full swing, but it would be great if you could hear our proposal once.', 'Cadence Cloud is in Q3 planning and its RevOps team is assessing workflow automation to support projected pipeline growth.'),
+    ]
+
+    for index, (first, last, title, company_name, industry, email, channel, campaign_label, inbound, research_summary) in enumerate(samples):
+        company = Company(name=company_name, website=f'https://{company_name.lower().replace(" ", "")}.example', industry=industry, employee_count=700 + index * 150)
+        db.add(company)
+        await db.flush()
+        prospect = Prospect(first_name=first, last_name=last, email=email, phone=f'+1-555-010{index}', linkedin_url=f'https://linkedin.com/in/{first.lower()}{last.lower()}', title=title, company_id=company.id, location='San Francisco, US', industry=industry, employee_count=company.employee_count, website=company.website, lifecycle_status='QUALIFIED')
+        db.add(prospect)
+        await db.flush()
+        association = CampaignProspect(campaign_id=campaign.id, prospect_id=prospect.id, qualification_status='QUALIFIED', qualification_score=94 - index * 3, qualification_reason=f'{title} at {company_name} matches the campaign ICP.', current_stage='PENDING_APPROVAL')
+        db.add(association)
+        await db.flush()
+        db.add(LeadAssignment(campaign_prospect_id=association.id, representative_id=aisha.id, assigned_by_id=assignment.assigned_by_id, status='ASSIGNED'))
+        run = AgentRun(campaign_id=campaign.id, prospect_id=prospect.id, agent_type='PERSONALIZATION', status='COMPLETED', output_data={'provider': 'demo', 'channel': channel})
+        db.add(run)
+        await db.flush()
+        db.add(ProspectResearch(campaign_id=campaign.id, prospect_id=prospect.id, status='verified', research_summary=research_summary, person_research={'current_role': title}, company_research={'company_name': company_name, 'industry': industry}, icp_evidence=[{'criterion': 'role', 'status': 'MATCHED', 'evidence': title}], business_context=[research_summary], personalization_signals=['Recent operational expansion signal'], sources=[company.website], uncertainties=[], agent_run_id=run.id))
+        conversation = Conversation(campaign_id=campaign.id, prospect_id=prospect.id, status='OPEN')
+        db.add(conversation)
+        await db.flush()
+        db.add_all([
+            Message(conversation_id=conversation.id, direction='OUTBOUND', channel=channel, content=f'Hi {first}, I wanted to share how teams streamline approval-led outbound workflows.'),
+            Message(conversation_id=conversation.id, direction='INBOUND', channel=channel, content=inbound),
+        ])
+        db.add(ApprovalRequest(campaign_id=campaign.id, campaign_prospect_id=association.id, representative_id=aisha.id, request_type='FOLLOW_UP', payload={'demo_inbox_sample': True, 'campaign_label': campaign_label, 'channel': channel, 'priority': 'HIGH' if index < 2 else 'NORMAL', 'intent': 'FOLLOW_UP', 'agent': 'PERSONALIZATION', 'prompt_version': '1.0.0', 'message': inbound, 'source_references': [company.website], 'agent_run_id': run.id}, status='PENDING'))
+
+    await db.commit()
+
+
 async def seed(db):
     # Check if comprehensive seed is already applied
     existing_campaigns = (await db.scalars(select(Campaign))).all()
     if existing_campaigns and len(existing_campaigns) >= 3 and await db.scalar(select(Conversation)):
+        await ensure_approval_inbox_demo(db)
         return
 
     # Clear existing demo records if updating seed
@@ -613,4 +667,5 @@ async def seed(db):
     ]
     db.add_all(prompts)
 
+    await ensure_approval_inbox_demo(db)
     await db.commit()

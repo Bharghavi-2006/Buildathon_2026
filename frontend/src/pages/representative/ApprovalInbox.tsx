@@ -191,7 +191,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {hotLeadIds.has(item.approval.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-amber-300">Hot Lead</span>}
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-950/50 border border-purple-500/30 text-purple-300">{item.campaign.name}</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-950/50 border border-purple-500/30 text-purple-300">{item.approval.payload?.campaign_label || item.campaign.name}</span>
                     <span className="text-[11px] text-slate-500">Conversation: <span className="text-amber-400 font-medium">Follow-up</span> · Personalization</span>
 
                     <div className="ml-auto flex items-center gap-2">
