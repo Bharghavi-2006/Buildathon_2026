@@ -269,7 +269,7 @@ export const Step3Agents: React.FC<Step3AgentsProps> = ({
       </div>
 
       {/* Summary status */}
-      <div className="flex items-center justify-between text-xs text-slate-400 bg-white/5 border border-purple-500/10 rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between text-xs text-slate-400 bg-white/5 border border-[#7C3AED] rounded-xl px-4 py-3">
         <span>Active Agents for Campaign: <strong className="text-white">{enabledCount} of {agents.length} enabled</strong></span>
         {!canProceed && (
           <span className="text-amber-400 flex items-center gap-1">

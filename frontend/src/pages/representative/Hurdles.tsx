@@ -58,12 +58,12 @@ export const RepresentativeHurdles: React.FC = () => {
       <AlertBanner type="critical" message="All outbound activity has been stopped platform-wide by an administrator." />
     )}
     <div className="grid grid-cols-3 gap-3">
-      <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-rose-400">{open.filter((h: HurdleListItem) => h.status === 'ESCALATED').length}</div><div className="text-xs text-slate-400 mt-1">Escalated</div></div>
-      <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-amber-400">{open.filter((h: HurdleListItem) => h.status === 'WARNING').length}</div><div className="text-xs text-slate-400 mt-1">Warning</div></div>
-      <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-emerald-400">{resolved.length}</div><div className="text-xs text-slate-400 mt-1">Resolved</div></div>
+      <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-rose-400">{open.filter((h: HurdleListItem) => h.status === 'ESCALATED').length}</div><div className="text-xs text-slate-400 mt-1">Escalated</div></div>
+      <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-amber-400">{open.filter((h: HurdleListItem) => h.status === 'WARNING').length}</div><div className="text-xs text-slate-400 mt-1">Warning</div></div>
+      <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-emerald-400">{resolved.length}</div><div className="text-xs text-slate-400 mt-1">Resolved</div></div>
     </div>
 
-    <div className="rounded-xl border border-purple-500/10 overflow-hidden">
+    <div className="rounded-xl border border-[#7C3AED] overflow-hidden">
       <table className="w-full text-xs">
         <thead className="bg-[#0d0f22] text-slate-500 uppercase tracking-wider">
           <tr>

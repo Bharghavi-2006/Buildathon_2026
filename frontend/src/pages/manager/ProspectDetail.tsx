@@ -136,7 +136,7 @@ export const ProspectDetail: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Research Card */}
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-500/10">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
@@ -168,7 +168,7 @@ export const ProspectDetail: React.FC = () => {
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
                     Executive Summary
                   </div>
-                  <p className="text-slate-200 bg-[#070811] p-3 rounded-xl border border-purple-500/10 leading-relaxed">
+                  <p className="text-slate-200 bg-[#070811] p-3 rounded-xl border border-[#7C3AED] leading-relaxed">
                     {research.research_summary}
                   </p>
                 </div>
@@ -183,7 +183,7 @@ export const ProspectDetail: React.FC = () => {
                       {research.icp_evidence.map((ev, idx) => (
                         <div
                           key={idx}
-                          className="bg-[#0e1022] border border-purple-500/10 rounded-xl p-3 flex items-start gap-2.5"
+                          className="bg-[#0e1022] border border-[#7C3AED] rounded-xl p-3 flex items-start gap-2.5"
                         >
                           {ev.status === 'MATCHED' ? (
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -245,7 +245,7 @@ export const ProspectDetail: React.FC = () => {
         </div>
 
         {/* Right Column: Deterministic ICP Fitment Card */}
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-500/10">
               <div className="flex items-center gap-2 text-sm font-bold text-white">
@@ -300,7 +300,7 @@ export const ProspectDetail: React.FC = () => {
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
                     Deterministic Criteria Breakdown
                   </div>
-                  <div className="border border-purple-500/10 rounded-xl overflow-hidden">
+                  <div className="border border-[#7C3AED] rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#070811] text-[10px] text-slate-400 uppercase tracking-wider border-b border-purple-500/10">
                         <tr>
@@ -370,7 +370,7 @@ export const ProspectDetail: React.FC = () => {
       </div>
 
       {/* Voice SDR -- explicitly simulated, never a real telephony call */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-500/10">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <Phone className="w-4 h-4 text-indigo-400" />
@@ -403,19 +403,19 @@ export const ProspectDetail: React.FC = () => {
               ))}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+              <div className="bg-[#070811] border border-[#7C3AED] rounded-xl p-3">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Intent</div>
                 <div className="text-emerald-300 font-semibold">{voiceCallMutation.data.intent}</div>
               </div>
-              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+              <div className="bg-[#070811] border border-[#7C3AED] rounded-xl p-3">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Outcome</div>
                 <div className="text-amber-300 font-semibold">{voiceCallMutation.data.outcome}</div>
               </div>
-              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+              <div className="bg-[#070811] border border-[#7C3AED] rounded-xl p-3">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Policy</div>
                 <div className="text-emerald-300 font-semibold">{voiceCallMutation.data.policy}</div>
               </div>
-              <div className="bg-[#070811] border border-purple-500/10 rounded-xl p-3">
+              <div className="bg-[#070811] border border-[#7C3AED] rounded-xl p-3">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Human Escalation</div>
                 <div className="text-slate-300 font-semibold">{voiceCallMutation.data.human_escalation ? 'YES' : 'NO'}</div>
               </div>

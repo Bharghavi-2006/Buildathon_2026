@@ -76,18 +76,16 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         {used} / {limit} capacity
       </div>
-      <div className="relative">
-        <button
-          title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
-          className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-300' : 'bg-[#12152d] border-purple-500/15 text-slate-300 hover:border-purple-500/40'}`}
-        >
-          <Bell className="w-4 h-4" />
-        </button>
-      </div>
+      <button
+        title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
+        className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${killActive ? 'text-rose-300' : 'text-slate-300 hover:text-white'}`}
+      >
+        <Bell className="w-4 h-4" />
+      </button>
       <div className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className="w-9 h-9 rounded-full bg-purple-600/40 border border-purple-500/50 flex items-center justify-center text-xs font-bold text-purple-100"
+          className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white"
         >
           {name.charAt(0).toUpperCase()}
         </button>

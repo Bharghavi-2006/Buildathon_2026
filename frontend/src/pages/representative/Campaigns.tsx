@@ -63,10 +63,10 @@ export const RepresentativeCampaigns: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalCampaigns}</div><div className="text-xs text-slate-400 mt-1">Total campaigns</div></div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-emerald-400">{live}</div><div className="text-xs text-slate-400 mt-1">Live</div></div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalProspects}</div><div className="text-xs text-slate-400 mt-1">Assigned prospects</div></div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalOutreach}</div><div className="text-xs text-slate-400 mt-1">Outreach sent</div></div>
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalCampaigns}</div><div className="text-xs text-slate-400 mt-1">Total campaigns</div></div>
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-emerald-400">{live}</div><div className="text-xs text-slate-400 mt-1">Live</div></div>
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalProspects}</div><div className="text-xs text-slate-400 mt-1">Assigned prospects</div></div>
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4"><div className="text-2xl font-bold text-white">{totalOutreach}</div><div className="text-xs text-slate-400 mt-1">Outreach sent</div></div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -83,7 +83,7 @@ export const RepresentativeCampaigns: React.FC = () => {
         <span className="ml-auto text-xs text-slate-500">{rows.length} campaign{rows.length === 1 ? '' : 's'}</span>
       </div>
 
-      <div className="rounded-xl border border-purple-500/10 overflow-hidden">
+      <div className="rounded-xl border border-[#7C3AED] overflow-hidden">
         <table className="w-full text-xs">
           <thead className="bg-[#0d0f22] text-slate-500 uppercase tracking-wider">
             <tr>
@@ -103,7 +103,14 @@ export const RepresentativeCampaigns: React.FC = () => {
                 <tr key={item.campaign.id} onClick={() => navigate(`/rep/campaigns/${item.campaign.id}`)} className="border-t border-purple-500/5 hover:bg-[#12152d] cursor-pointer transition-colors">
                   <td className="px-4 py-3">
                     <div className="text-slate-100 font-semibold">{item.campaign.name}</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">{item.channels.map((c: any) => CHANNEL_LABEL[c.channel] || c.channel).join(' · ')}</div>
+                    <div className="text-[11px] mt-0.5 flex flex-wrap items-center gap-x-1">
+                      {item.channels.map((c: any, i: number) => (
+                        <React.Fragment key={c.channel}>
+                          {i > 0 && <span className="text-slate-600">·</span>}
+                          <span className={c.enabled ? 'text-emerald-400' : 'text-amber-400'}>{CHANNEL_LABEL[c.channel] || c.channel}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
                     {item.has_conflict && <div className="text-[11px] text-rose-300 mt-1 flex items-center gap-1"><ShieldAlert className="w-3 h-3" />Conflict</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-400 max-w-xs">{item.campaign.target_roles?.join(', ') || 'Configured ICP'} · {item.campaign.target_industries?.join(', ') || 'All industries'}</td>

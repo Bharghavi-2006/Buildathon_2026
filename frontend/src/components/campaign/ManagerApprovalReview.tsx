@@ -80,7 +80,7 @@ export const ManagerApprovalReview: React.FC<{ approvalId: string; onClose: () =
                 </div>
               </div>
 
-              <div className="bg-[#070811] border border-purple-500/10 rounded-lg p-3.5 space-y-3">
+              <div className="bg-[#070811] border border-[#7C3AED] rounded-lg p-3.5 space-y-3">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   <Sparkles className="w-3.5 h-3.5 text-purple-400" />Context used
                 </div>
@@ -92,7 +92,7 @@ export const ManagerApprovalReview: React.FC<{ approvalId: string; onClose: () =
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Research snippet</div>
-                      <div className="rounded-lg border border-purple-500/10 bg-[#0d0f22] p-2.5 text-xs text-slate-300 leading-relaxed">
+                      <div className="rounded-lg border border-[#7C3AED] bg-[#0d0f22] p-2.5 text-xs text-slate-300 leading-relaxed">
                         {context.research_snippet || 'No research on file for this prospect yet.'}
                       </div>
                     </div>

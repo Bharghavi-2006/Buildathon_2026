@@ -35,18 +35,22 @@ const PipelineFunnel: React.FC<{ funnel: Array<{ stage: string; count: number }>
   );
 };
 
+const CHANNEL_ORDER = ['linkedin', 'email', 'message', 'voice'];
+
 const OutreachByChannel: React.FC<{ breakdown: Array<{ channel: string; count: number }> }> = ({ breakdown }) => {
-  const max = Math.max(1, ...breakdown.map((b) => b.count));
+  const countByChannel: Record<string, number> = {};
+  breakdown.forEach((b) => { countByChannel[b.channel] = b.count; });
+  const bars = CHANNEL_ORDER.map((channel) => ({ channel, count: countByChannel[channel] || 0 }));
+  const max = Math.max(1, ...bars.map((b) => b.count));
   return (
     <div className="flex items-end justify-between gap-4 h-40 mt-4">
-      {breakdown.map((b) => (
-        <div key={b.channel} className="flex-1 flex flex-col items-center gap-2">
+      {bars.map((b) => (
+        <div key={b.channel} className="flex-1 h-full flex flex-col items-center justify-end gap-2">
           <span className="text-xs text-slate-300 font-medium">{b.count}</span>
           <div className={`w-full max-w-[64px] rounded-t ${b.channel === 'email' ? 'bg-purple-500' : 'bg-blue-500'}`} style={{ height: `${Math.max(6, (b.count / max) * 100)}%` }} />
           <span className="text-[11px] text-slate-500">{CHANNEL_LABEL[b.channel] || b.channel}</span>
         </div>
       ))}
-      {!breakdown.length && <p className="text-xs text-slate-500 self-center mx-auto">No outbound messages sent on this campaign yet.</p>}
     </div>
   );
 };
@@ -87,25 +91,25 @@ export const RepresentativeCampaignDetail: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Messages sent</div>
           <div className="text-2xl font-bold text-white">{messages_sent.toLocaleString()}</div>
         </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Positive replies</div>
           <div className="text-2xl font-bold text-white">{positive_replies.toLocaleString()}</div>
         </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Meetings booked</div>
           <div className="text-2xl font-bold text-emerald-400">{meetings_booked}</div>
         </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Campaign status</div>
           <div className="text-lg font-bold text-white">{campaign.status === 'LIVE' ? 'Live' : campaign.status} · {days_live} day{days_live === 1 ? '' : 's'}</div>
         </div>
       </div>
 
-      <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-5">
+      <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-white">Pipeline funnel</h3>
           <span className="text-[11px] text-slate-500">Live totals across the campaign</span>
@@ -121,13 +125,13 @@ export const RepresentativeCampaignDetail: React.FC = () => {
 
       {tab === 'overview' && (
         <div className="grid lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-[#0d0f22] border border-purple-500/10 rounded-xl p-5">
+          <div className="lg:col-span-2 bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-5">
             <h3 className="text-sm font-semibold text-white">Outreach by channel</h3>
             <p className="text-xs text-slate-500 mt-0.5">Messages sent across each channel in this campaign.</p>
             <OutreachByChannel breakdown={channel_breakdown} />
           </div>
           <div className="space-y-4">
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Prompt version</div>
               {prompt_version ? (
                 <>
@@ -136,7 +140,7 @@ export const RepresentativeCampaignDetail: React.FC = () => {
                 </>
               ) : <p className="text-xs text-slate-500">No campaign-specific prompt version is active — the default agent prompt is in use.</p>}
             </div>
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Approval setting</div>
               <div className="text-sm text-slate-200">{approval_required ? 'Require rep approval before send' : 'No approval required before send'}</div>
               <span className={`inline-block mt-2 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${approval_required ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}>{approval_required ? 'Active' : 'Inactive'}</span>
@@ -146,9 +150,9 @@ export const RepresentativeCampaignDetail: React.FC = () => {
       )}
 
       {tab === 'agents' && (
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-5 space-y-2.5">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-5 space-y-2.5">
           {AGENT_ORDER.filter((a) => (enabled_agents || []).includes(a)).map((a) => (
-            <div key={a} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#070811] border border-purple-500/10">
+            <div key={a} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#070811] border border-[#7C3AED]">
               <span className="text-sm text-slate-200">{AGENT_LABEL[a]}</span>
               <StatusBadge status="Active" />
             </div>
@@ -158,7 +162,7 @@ export const RepresentativeCampaignDetail: React.FC = () => {
       )}
 
       {tab === 'team' && (
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl divide-y divide-purple-500/5">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl divide-y divide-purple-500/5">
           {(team || []).map((row: any) => (
             <div key={row.representative.id} className="flex items-center justify-between px-5 py-3.5">
               <div className="flex items-center gap-3">

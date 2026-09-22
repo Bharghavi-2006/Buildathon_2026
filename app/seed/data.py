@@ -579,6 +579,11 @@ async def seed(db):
     india_docs = [
         ('India BFSI Playbook: Regulatory & Compliance Governance', 'When communicating with Indian BFSI CIOs, prioritize data residency, RBI guidelines compliance, zero hallucination deterministic policies, and complete audit trails.'),
     ]
+    ctos_docs = [
+        ('CTO/CIO Buyer Playbook', 'This campaign targets CTOs and CIOs at SaaS and cloud-native companies with 200-5,000 employees. Lead with cloud cost efficiency, engineering velocity, and multi-cloud reliability -- not generic platform features.'),
+        ('Case Study: Cloud Infrastructure Modernization', 'A mid-market cloud SaaS company cut infrastructure spend 30% and shipped 2x faster after consolidating its engineering tooling, freeing engineering leadership from manual vendor evaluation cycles.'),
+        ('Objection Handling: "We\'re mid-migration already"', 'Position as complementary, not disruptive: integrates alongside an in-flight cloud migration rather than requiring a rip-and-replace, so ongoing modernization work isn\'t blocked.'),
+    ]
     hero_docs = [
         ('Product Overview', 'Our platform automates SDR prospecting end to end -- discovery, research, ICP fitment, personalized outreach across email/LinkedIn/SMS/voice, and conversation handling -- while a deterministic policy engine gates every send behind human approval.'),
         ('Enterprise SaaS Case Study', 'A 2,000-employee B2B SaaS company reduced manual prospecting time by 70% after adopting our platform, while keeping every outbound message subject to representative approval and full audit logging.'),
@@ -590,6 +595,7 @@ async def seed(db):
     db.add_all([KnowledgeDocument(title=t, content=c, category='global') for t, c in global_docs])
     db.add_all([KnowledgeDocument(title=t, content=c, category=f'campaign_{camp_3.id}') for t, c in india_docs])
     db.add_all([KnowledgeDocument(title=t, content=c, category=f'campaign_{camp_1.id}') for t, c in hero_docs])
+    db.add_all([KnowledgeDocument(title=t, content=c, category=f'campaign_{camp_2.id}') for t, c in ctos_docs])
 
     # 13. Prompt Versions
     prompts = [

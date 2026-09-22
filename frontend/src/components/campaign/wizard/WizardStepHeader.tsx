@@ -33,7 +33,7 @@ export const WizardStepHeader: React.FC<WizardStepHeaderProps> = ({
   onSelectStep,
 }) => {
   return (
-    <div className="w-full bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-4 sm:p-5 shadow-xl">
+    <div className="w-full bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-4 sm:p-5 shadow-xl">
       <div className="flex items-center justify-between overflow-x-auto no-scrollbar gap-2 sm:gap-3 py-1">
         {WIZARD_STEPS.map((step, idx) => {
           const isCurrent = step.id === currentStep;
