@@ -206,6 +206,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
 
                   <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
                     <span className="font-semibold text-white">{item.prospect.first_name} {item.prospect.last_name}</span>
+                    <span className="text-xs text-slate-400">{item.prospect.title}{item.prospect.title && item.prospect.industry ? ' · ' : ''}{item.prospect.industry}</span>
                   </div>
                   {item.conflict && <div className="text-[11px] text-rose-300 mt-1 flex items-center gap-1"><ShieldAlert className="w-3 h-3" />Also active in {item.conflict.other_campaign_name}</div>}
                   {!isExpanded && (
@@ -215,13 +216,13 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                   )}
 
                   {isExpanded && (
-                    <div onClick={(e) => e.stopPropagation()} className="grid md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-purple-500/10">
-                      <div className="md:col-span-2 space-y-3">
+                    <div onClick={(e) => e.stopPropagation()} className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4 pt-4 border-t border-purple-500/10">
+                      <div className="min-w-0 space-y-3">
                         <div className="text-[10px] text-slate-500 uppercase tracking-wide">Draft message</div>
                         <textarea
                           value={draftText}
                           onChange={(e) => setDraftText(e.target.value)}
-                          className="w-full min-h-32 bg-[#070811] border border-purple-500/20 rounded-lg p-3 text-sm text-slate-200 leading-relaxed focus:outline-none focus:border-purple-500/50"
+                          className="w-full min-h-72 bg-[#070811] border border-purple-500/20 rounded-xl p-4 text-sm text-slate-200 leading-relaxed focus:outline-none focus:border-purple-500/50"
                         />
                         <div className="flex items-center gap-2">
                           <button
@@ -235,7 +236,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                           <RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} className={`${approvalActionClass} bg-rose-700/90 text-white border-none appearance-none cursor-pointer`} />
                         </div>
                       </div>
-                      <div className="bg-[#070811] border border-[#7C3AED] rounded-lg p-3.5">
+                      <div className="min-w-0 min-h-72 bg-[#070811] rounded-xl p-5">
                         <ContextUsedPanel approvalId={item.approval.id} />
                       </div>
                     </div>

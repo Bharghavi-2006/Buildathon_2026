@@ -494,7 +494,8 @@ async def seed(db):
     ], contact_fit_score=85.0, contact_fit_status='STRONG_FIT', contact_criteria=[{'criterion': 'target_role', 'status': 'MATCHED', 'expected_value': ['CIO', 'CTO', 'CDO', 'Head of Digital', 'VP Technology'], 'actual_value': 'CIO', 'reason': 'Title is Chief Information Officer.'}], overall_fit_score=87.5, overall_fit_status='STRONG_FIT', recommended_next_stage='OUTREACH_ELIGIBLE', key_fit_signals=['Regulated BFSI compliance match', 'High authority budget owner'], key_risk_factors=['Longer enterprise procurement cycle typical of banking'], uncertainties=['Internal procurement sign-off required'], research_id=res_rohan.id, engine_version='icp-fitment-v1'))
     await db.flush()
 
-    # 10. Approval Requests. Two hero PENDING drafts (Marcus Idowu, Elena Petrova), one
+    # 10. Approval Requests. Three PENDING drafts for Aisha (including an Ava Reed
+    # follow-up with rich research context), one
     # SENT (Priya Nair -> Freshworks, matching her CONTACTED stage), plus a deliberately
     # aging (>24h) Campaign 2 approval so the manager's aging-approval alert banner fires,
     # and one normal Campaign 3 approval.
@@ -526,7 +527,13 @@ async def seed(db):
                  'source_references': ['https://paysecure.example']}, status='PENDING')
     app_normal_3.created_at = normal_created_at
 
-    db.add_all([app_hero_1, app_hero_2, app_aging, app_normal_3])
+    app_ava_followup = ApprovalRequest(campaign_id=camp_2.id, campaign_prospect_id=cp_2_ava.id, representative_id=aisha.id, request_type='FOLLOW_UP',
+        payload={'channel': 'linkedin', 'subject': '', 'priority': 'HIGH', 'intent': 'FOLLOW_UP', 'agent': 'PERSONALIZATION', 'prompt_version': '1.0.0',
+                 'message': 'Hi Ava, I saw CloudScale is scaling its engineering team after the Series B. How are you keeping outbound execution consistent while the team grows?',
+                 'source_references': ['https://cloudscale.example/about', 'https://techcrunch.example/cloudscale-series-b']}, status='PENDING')
+    app_ava_followup.created_at = normal_created_at
+
+    db.add_all([app_hero_1, app_hero_2, app_aging, app_normal_3, app_ava_followup])
     await db.flush()
 
     # The Freshworks/Priya Nair approval is already SENT, matching her CONTACTED stage.
