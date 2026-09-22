@@ -175,7 +175,13 @@ export const RepresentativeApprovalInbox: React.FC = () => {
               className={`rounded-xl border p-4 cursor-pointer transition-colors ${isExpanded ? 'border-purple-500/50 bg-[#17122f]' : hotLeadIds.has(item.approval.id) ? 'border-amber-500/30 bg-amber-950/5 hover:border-amber-500/50' : 'border-purple-500/30 bg-[#17122f] hover:border-purple-500/50'}`}
             >
               <div className="flex items-start gap-3">
-                <input type="checkbox" checked={selected.has(item.approval.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleOne(item.approval.id)} className="mt-1 rounded border-purple-500/30 flex-shrink-0" />
+                <input
+                  type="checkbox"
+                  checked={selected.has(item.approval.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleOne(item.approval.id)}
+                  className="appearance-none mt-1 w-4 h-4 rounded border border-purple-500/30 bg-[#17122F] checked:bg-purple-600 checked:border-purple-600 checked:bg-[url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22M3%208l3%203%207-7%22%2F%3E%3C%2Fsvg%3E')] bg-center bg-no-repeat cursor-pointer transition-colors flex-shrink-0"
+                />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {hotLeadIds.has(item.approval.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-amber-300">Hot Lead</span>}
