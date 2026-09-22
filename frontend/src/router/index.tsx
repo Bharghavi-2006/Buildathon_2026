@@ -16,9 +16,7 @@ import { RepresentativeCampaigns } from '../pages/representative/Campaigns';
 import { RepresentativeCampaignDetail } from '../pages/representative/CampaignDetail';
 import { RepresentativeApprovalInbox } from '../pages/representative/ApprovalInbox';
 import { RepresentativeMonitoring } from '../pages/representative/Monitoring';
-import { RepresentativeConversations } from '../pages/representative/Conversations';
 import { RepresentativeSettings } from '../pages/representative/Settings';
-import { RepresentativeHurdles } from '../pages/representative/Hurdles';
 import { Home } from '../pages/Home';
 
 export const router = createBrowserRouter([
@@ -53,9 +51,7 @@ export const router = createBrowserRouter([
           { path: 'campaigns', element: <RepresentativeCampaigns /> },
           { path: 'campaigns/:id', element: <RepresentativeCampaignDetail /> },
           { path: 'approvals', element: <RepresentativeApprovalInbox /> },
-          { path: 'conversations', element: <RepresentativeConversations /> },
           { path: 'monitoring', element: <RepresentativeMonitoring /> },
-          { path: 'hurdles', element: <RepresentativeHurdles /> },
           { path: 'settings', element: <RepresentativeSettings /> },
           { path: '*', element: <Navigate to="/rep" replace /> },
         ],
