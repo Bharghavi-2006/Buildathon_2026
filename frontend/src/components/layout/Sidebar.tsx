@@ -1,12 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, TrendingUp, Settings, HelpCircle, CheckSquare, MessageSquare, AlertOctagon, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, TrendingUp, Settings, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+// Manager-only shell: representatives are routed through RepLayout instead, which
+// has its own sidebar matching the rep workspace's distinct navigation.
 export const Sidebar: React.FC = () => {
-  const { role, currentUser } = useAuth();
-
-  const isManager = role === 'MANAGER';
+  const { currentUser } = useAuth();
   const displayName = currentUser?.user?.name || 'Loading…';
 
   return (
@@ -19,137 +19,59 @@ export const Sidebar: React.FC = () => {
           <div className="font-semibold text-white tracking-tight">{displayName}</div>
         </div>
 
-        {/* Main Navigation Links */}
         <nav className="space-y-1">
-          {isManager ? (
-            <>
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </NavLink>
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
+              }`
+            }
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Dashboard
+          </NavLink>
 
-              <NavLink
-                to="/manager/sdrs"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <Users className="w-4 h-4" />
-                SDRs
-              </NavLink>
+          <NavLink
+            to="/manager/sdrs"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
+              }`
+            }
+          >
+            <Users className="w-4 h-4" />
+            SDRs
+          </NavLink>
 
-              <NavLink
-                to="/monitoring"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <TrendingUp className="w-4 h-4" />
-                Monitoring
-              </NavLink>
-            </>
-          ) : (
-            <>
-              <NavLink
-              to="/rep"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                My Queue
-              </NavLink>
-
-              <NavLink
-                to="/rep/approvals"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <CheckSquare className="w-4 h-4" />
-                Approvals
-              </NavLink>
-
-              <NavLink
-                to="/rep/conversations"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <MessageSquare className="w-4 h-4" />
-                Conversations
-              </NavLink>
-
-              <NavLink
-                to="/rep/hurdles"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <AlertOctagon className="w-4 h-4" />
-                AI Hurdles
-              </NavLink>
-
-              <NavLink
-                to="/rep/guardrails"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
-                  }`
-                }
-              >
-                <ShieldCheck className="w-4 h-4" />
-                Guardrails
-              </NavLink>
-            </>
-          )}
+          <NavLink
+            to="/monitoring"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#12152d]'
+              }`
+            }
+          >
+            <TrendingUp className="w-4 h-4" />
+            Monitoring
+          </NavLink>
         </nav>
       </div>
 
-      {/* Bottom Section: WORKSPACE */}
       <div className="pt-6 border-t border-purple-500/10">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-2">
           Workspace
         </div>
         <div className="space-y-1">
           <NavLink
-            to={isManager ? '/settings' : '/rep'}
+            to="/settings"
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                 isActive

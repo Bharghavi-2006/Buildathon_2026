@@ -1,7 +1,6 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { AppLayout } from './AppLayout';
 
 const REP_PREFIX = '/rep';
 
@@ -29,5 +28,5 @@ export const ProtectedRoute: React.FC = () => {
   if (role === 'REPRESENTATIVE' && !onRepRoute) return <Navigate to="/rep" replace />;
   if (role === 'MANAGER' && onRepRoute) return <Navigate to="/" replace />;
 
-  return <AppLayout />;
+  return <Outlet />;
 };
