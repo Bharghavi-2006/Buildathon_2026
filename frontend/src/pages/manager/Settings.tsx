@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, Bell, Loader2, Plug, Plus, Save, Shield, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Ban, Bell, Loader2, Plug, Plus, RotateCcw, Save, Shield, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { useAuth } from '../../context/AuthContext';
 
@@ -90,6 +90,17 @@ export const Settings: React.FC = () => {
   const { data: integrations } = useQuery({
     queryKey: ['integrations-status'],
     queryFn: campaignsApi.getIntegrationsStatus,
+  });
+
+  // --- Demo data reset (demo mode only) ---
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const resetDemoDataMutation = useMutation({
+    mutationFn: () => campaignsApi.resetDemoData(),
+    onSuccess: () => {
+      setConfirmingReset(false);
+      queryClient.invalidateQueries();
+    },
+    onError: (err: any) => alert(err.message || 'Failed to reset demo data'),
   });
 
   return (
@@ -265,6 +276,41 @@ export const Settings: React.FC = () => {
           <div className="text-xs text-slate-400 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading...</div>
         )}
       </SectionCard>
+
+      {integrations?.demo_mode && (
+        <SectionCard title="Demo Data" icon={RotateCcw} description="Wipe every campaign, prospect, and conversation and reseed the original 3 demo campaigns from a clean slate. Login accounts are never touched.">
+          <div className="flex items-start gap-2 text-xs text-amber-300 bg-amber-950/20 border border-amber-500/30 rounded-lg px-3 py-2.5">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <span>This permanently deletes any campaigns, prospects, and conversations created since the last reset — including cross-campaign conflicts built up from testing. There's no undo.</span>
+          </div>
+          {!confirmingReset ? (
+            <button
+              onClick={() => setConfirmingReset(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 text-xs font-semibold transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reset Demo Data
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => resetDemoDataMutation.mutate()}
+                disabled={resetDemoDataMutation.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold transition-all"
+              >
+                {resetDemoDataMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                {resetDemoDataMutation.isPending ? 'Resetting…' : 'Confirm reset'}
+              </button>
+              <button
+                onClick={() => setConfirmingReset(false)}
+                disabled={resetDemoDataMutation.isPending}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/5 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </SectionCard>
+      )}
     </div>
   );
 };

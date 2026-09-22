@@ -599,3 +599,15 @@ async def revoke_manager_access(user_id:str,db:AsyncSession=Depends(get_session)
 async def integrations_status(identity=Depends(require_manager)):
     """Read-only: these are environment-managed (webhook URLs/API keys, LLM provider), not editable from the UI."""
     return {'llm_provider':settings().llm_provider,'demo_mode':settings().demo_mode,'agents':public_agent_status()}
+@router.post('/admin/reset-demo-data')
+async def reset_demo_data(db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    """Wipes every campaign/prospect/conversation/approval/etc. row (User and
+    AccessProfile are never touched, so logins survive) and reseeds the canonical
+    3-campaign demo dataset. Only available in demo mode -- this is destructive and
+    must never be reachable against real data."""
+    if not settings().demo_mode:
+        raise HTTPException(403,'Demo data reset is only available when DEMO_MODE is enabled.')
+    from app.seed.data import force_reset
+    await force_reset(db)
+    audit(db,'DEMO_DATA_RESET','platform',identity[0].id,{'actor':identity[0].id}); await db.commit()
+    return {'status':'reset'}

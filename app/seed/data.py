@@ -6,7 +6,30 @@ from app.db.models import (
     User, AccessProfile, CampaignAssignment, LeadAssignment, ApprovalRequest,
     Conversation, Message, AgentRun, OutreachEvent, ProspectResearch, ProspectFitment,
     Company, ProspectBatch, CampaignSetup,
+    KnowledgeGapFlag, AgentDecision, DeliveryRecord, KnowledgeChunk, ScheduledAction,
+    Hurdle, CampaignAgentConfig, SuppressionEntry, ChannelConfiguration, AuditLog,
 )
+
+# Every model that carries demo/campaign content, in strict child-before-parent
+# order so deleting them doesn't violate a foreign key on Postgres (SQLite doesn't
+# enforce FKs here, so ordering bugs only ever surface against the deployed DB --
+# get this order wrong and a live reset fails outright). User/AccessProfile are
+# deliberately never included: a reset must never touch login accounts.
+_DEMO_TABLES_CHILD_FIRST = [
+    KnowledgeGapFlag, AgentDecision, Message, DeliveryRecord, KnowledgeChunk,
+    ScheduledAction, Hurdle, LeadAssignment, ApprovalRequest, ProspectFitment,
+    ProspectResearch, CampaignAgentConfig, AgentRun, OutreachEvent, Conversation,
+    CampaignProspect, ProspectBatch, ResearchFact, SuppressionEntry,
+    CampaignAssignment, CampaignAgent, CampaignChannelSettings, ChannelConfiguration,
+    CampaignSetup, Campaign, Prospect, Company, KnowledgeDocument, PromptVersion,
+    Source, AuditLog,
+]
+
+
+async def _clear_demo_tables(db):
+    for model in _DEMO_TABLES_CHILD_FIRST:
+        await db.execute(delete(model))
+    await db.commit()
 
 # Hero campaign working hours: shared literally between the campaign's channel settings
 # and Aisha's profile so the RepMatchEngine's timezone/working-hours dimensions score
@@ -29,14 +52,21 @@ async def seed(db):
     existing_campaigns = (await db.scalars(select(Campaign))).all()
     if existing_campaigns and len(existing_campaigns) >= 3 and await db.scalar(select(Conversation)):
         return
+    await _clear_demo_tables(db)
+    await _seed_canonical_data(db)
 
-    # Clear existing demo records if updating seed
-    for model in [Message, Conversation, OutreachEvent, AgentRun, ApprovalRequest,
-                  LeadAssignment, CampaignAssignment, CampaignChannelSettings, CampaignAgent,
-                  ProspectFitment, ProspectResearch, ResearchFact, CampaignProspect,
-                  CampaignSetup, Prospect, Company, Campaign]:
-        await db.execute(delete(model))
-    await db.commit()
+
+async def force_reset(db):
+    """Wipes every campaign/prospect/conversation/etc. row (never User or
+    AccessProfile, so login accounts survive) and reseeds the canonical 3-campaign
+    demo dataset from scratch. Unlike seed(), this always runs regardless of what's
+    already in the database -- it's what the manager-only reset endpoint calls to
+    give a clean, conflict-free slate on a database that's accumulated test data."""
+    await _clear_demo_tables(db)
+    await _seed_canonical_data(db)
+
+
+async def _seed_canonical_data(db):
 
     # 1. Users & Access Profiles
     manager = await db.scalar(select(User).where(User.email == 'manager@demo.local'))
