@@ -44,7 +44,7 @@ const ContextUsedPanel: React.FC<{ approvalId: string }> = ({ approvalId }) => {
 
       <div>
         <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Research snippet</div>
-        <div className="rounded-lg border border-purple-500/10 bg-[#070811] p-2.5 text-xs text-slate-300 leading-relaxed">
+        <div className="rounded-lg border border-[#7C3AED] bg-[#070811] p-2.5 text-xs text-slate-300 leading-relaxed">
           {data.research_snippet || 'No research on file for this prospect yet.'}
         </div>
       </div>
@@ -235,7 +235,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                           <RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} className={`${approvalActionClass} bg-rose-700/90 text-white border-none appearance-none cursor-pointer`} />
                         </div>
                       </div>
-                      <div className="bg-[#070811] border border-purple-500/10 rounded-lg p-3.5">
+                      <div className="bg-[#070811] border border-[#7C3AED] rounded-lg p-3.5">
                         <ContextUsedPanel approvalId={item.approval.id} />
                       </div>
                     </div>

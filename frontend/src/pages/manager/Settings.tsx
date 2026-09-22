@@ -5,7 +5,7 @@ import { campaignsApi } from '../../api/campaigns';
 import { useAuth } from '../../context/AuthContext';
 
 const SectionCard: React.FC<{ title: string; icon: React.ElementType; description?: string; children: React.ReactNode }> = ({ title, icon: Icon, description, children }) => (
-  <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-4">
+  <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-4">
     <div className="flex items-center gap-2.5">
       <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center flex-shrink-0">
         <Icon className="w-4 h-4" />
@@ -111,7 +111,7 @@ export const Settings: React.FC = () => {
             'Cross-campaign prospect conflicts are blocked before a second campaign can contact them',
             'Every send requires representative approval unless a campaign explicitly disables it',
           ].map((rule) => (
-            <li key={rule} className="flex items-start gap-2 bg-[#070811] border border-purple-500/10 rounded-lg px-3 py-2">
+            <li key={rule} className="flex items-start gap-2 bg-[#070811] border border-[#7C3AED] rounded-lg px-3 py-2">
               <Shield className="w-3.5 h-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
               <span>{rule}</span>
             </li>

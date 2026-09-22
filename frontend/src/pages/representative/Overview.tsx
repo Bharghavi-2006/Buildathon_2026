@@ -48,23 +48,23 @@ export const RepresentativeOverview: React.FC = () => {
       {atCapacity && <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3 text-sm text-rose-200"><AlertTriangle className="inline w-4 h-4 mr-2" />Daily sending capacity reached: {metrics.capacity_used}/{metrics.capacity_limit} units used.</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-2xl font-bold text-white">{metrics.pending_approvals}</div>
           <div className="text-sm text-slate-300 mt-1">Pending Approvals</div>
           {oldestApproval && <div className="text-[11px] text-rose-300 mt-1.5 font-medium">Oldest: {ageLabel(oldestApproval)}</div>}
         </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-2xl font-bold text-white">{metrics.meetings_booked}</div>
           <div className="text-sm text-slate-300 mt-1">Meetings booked</div>
         </div>
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4">
           <div className="text-2xl font-bold text-white">{escalated.length}</div>
           <div className="text-sm text-slate-300 mt-1">AI Escalations</div>
           {oldestEscalation && <div className="text-[11px] text-amber-300 mt-1.5 font-medium">Oldest: {ageLabel(oldestEscalation)}</div>}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-500/10 bg-[#0d0f22] p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#7C3AED] bg-[#0d0f22] p-3">
         <span className="text-[11px] uppercase tracking-wider text-slate-500 mr-1">Channel status</span>
         {metrics.channel_status?.map((c: any) => (
           <span key={c.channel} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${c.live ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300' : 'bg-slate-800/80 border-slate-700/60 text-slate-400'}`}>

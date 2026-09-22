@@ -258,7 +258,7 @@ export const SdrsRoster: React.FC = () => {
 
       {/* Top Level Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400">Active SDRs</span>
             <div className="w-7 h-7 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center">
@@ -273,7 +273,7 @@ export const SdrsRoster: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400">Active Campaign Assignments</span>
             <div className="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
@@ -286,7 +286,7 @@ export const SdrsRoster: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400">Available Capacity</span>
             <div className="w-7 h-7 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
@@ -301,7 +301,7 @@ export const SdrsRoster: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400">Capacity Warnings</span>
             <div
@@ -408,7 +408,7 @@ export const SdrsRoster: React.FC = () => {
       )}
 
       {/* Filter Bar */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -442,7 +442,7 @@ export const SdrsRoster: React.FC = () => {
           >
             <option value="all">Channel: All</option>
             <option value="linkedin">LinkedIn</option>
-            <option value="sms">SMS</option>
+            <option value="message">SMS</option>
             <option value="email">Email</option>
             <option value="voice">Voice</option>
           </select>
@@ -489,7 +489,7 @@ export const SdrsRoster: React.FC = () => {
       </div>
 
       {/* SDRs Table */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl shadow-xl overflow-hidden">
         {loadingReps ? (
           <div className="flex flex-col items-center justify-center p-16 text-slate-400 gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
@@ -572,22 +572,18 @@ export const SdrsRoster: React.FC = () => {
                       {/* Channels */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          {channels.map((channel) => {
-                            const ch = channel.toLowerCase();
-                            const icon = ch === 'linkedin'
-                              ? <Linkedin className="w-3.5 h-3.5 text-blue-400" />
-                              : ch === 'voice' || ch === 'call'
-                                ? <Phone className="w-3.5 h-3.5 text-amber-400" />
-                                : ch === 'sms' || ch === 'message' || ch === 'messages'
-                                  ? <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                                  : <Mail className="w-3.5 h-3.5 text-purple-400" />;
-
-                            return (
-                              <span key={channel} title={channel} aria-label={`${channel} channel`} className="w-5 h-5 rounded-md bg-[#070811] flex items-center justify-center">
-                                {icon}
-                              </span>
-                            );
-                          })}
+                          {channels.map((ch) => (
+                            <span
+                              key={ch}
+                              title={ch}
+                              className="w-6 h-6 rounded-md bg-[#070811] border border-[#7C3AED] flex items-center justify-center text-slate-400"
+                            >
+                              {ch === 'email' ? <Mail className="w-3 h-3 text-purple-400" /> : null}
+                              {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-400" /> : null}
+                              {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-400" /> : null}
+                              {ch === 'sms' || ch === 'message' || ch === 'messages' ? <Smartphone className="w-3 h-3 text-emerald-400" /> : null}
+                            </span>
+                          ))}
                         </div>
                       </td>
 
@@ -643,7 +639,7 @@ export const SdrsRoster: React.FC = () => {
                           {(rep.profile.specialties || []).slice(0, 2).map((spec) => (
                             <span
                               key={spec}
-                              className="px-2 py-0.5 rounded bg-white/5 border border-purple-500/10 text-slate-300 text-[10px]"
+                              className="px-2 py-0.5 rounded bg-white/5 border border-[#7C3AED] text-slate-300 text-[10px]"
                             >
                               {spec}
                             </span>

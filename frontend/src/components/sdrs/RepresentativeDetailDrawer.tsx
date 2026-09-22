@@ -8,7 +8,6 @@ import {
   Mail,
   Linkedin,
   Phone,
-  MessageSquare,
   Clock,
   Layers,
   Globe,
@@ -255,27 +254,27 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
 
                 {/* Match Dimension Breakdown */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">ICP / Domain Fit</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.icp_fit ?? 0}%</span>
                   </div>
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">Geography / Timezone</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.geography_fit ?? 0}%</span>
                   </div>
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">Channel Fit</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.channel_fit ?? 0}%</span>
                   </div>
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">Capacity</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.capacity ?? 0}%</span>
                   </div>
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">Specialization</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.specialization ?? 0}%</span>
                   </div>
-                  <div className="bg-[#070811] p-2.5 rounded-lg border border-purple-500/10">
+                  <div className="bg-[#070811] p-2.5 rounded-lg border border-[#7C3AED]">
                     <span className="text-slate-500 block text-[10px]">Working Hours Overlap</span>
                     <span className="font-semibold text-slate-200">{activeMatch.breakdown?.working_hours ?? 0}%</span>
                   </div>
@@ -319,12 +318,12 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
 
             {/* Top Workload Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-[#070811] p-3 rounded-xl border border-purple-500/10">
+              <div className="bg-[#070811] p-3 rounded-xl border border-[#7C3AED]">
                 <span className="text-slate-400 text-[11px] block">Active Leads</span>
                 <span className="text-base font-bold text-white mt-0.5 block">{activeLeads}</span>
               </div>
 
-              <div className="bg-[#070811] p-3 rounded-xl border border-purple-500/10">
+              <div className="bg-[#070811] p-3 rounded-xl border border-[#7C3AED]">
                 <span className="text-slate-400 text-[11px] block">Capacity</span>
                 <div className="flex items-center justify-between mt-0.5">
                   <span className="text-base font-bold text-white">{capacity}</span>
@@ -341,14 +340,14 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
                 </div>
               </div>
 
-              <div className="bg-[#070811] p-3 rounded-xl border border-purple-500/10">
+              <div className="bg-[#070811] p-3 rounded-xl border border-[#7C3AED]">
                 <span className="text-slate-400 text-[11px] block">Pending Approvals</span>
                 <span className="text-base font-bold text-white mt-0.5 block">
                   {detail?.approvals?.pending_count || 0}
                 </span>
               </div>
 
-              <div className="bg-[#070811] p-3 rounded-xl border border-purple-500/10">
+              <div className="bg-[#070811] p-3 rounded-xl border border-[#7C3AED]">
                 <span className="text-slate-400 text-[11px] block">Outreach Sent</span>
                 <span className="text-base font-bold text-white mt-0.5 block">
                   {detail?.outreach_sent || 0}
@@ -379,7 +378,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
             )}
 
             {/* Capacity Status & Warnings (Section 5 & 8) */}
-            <div className="bg-[#070811] p-4 rounded-xl border border-purple-500/10 space-y-2">
+            <div className="bg-[#070811] p-4 rounded-xl border border-[#7C3AED] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200">Capacity Utilization</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${capacityBadgeColor}`}>
@@ -426,7 +425,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
             </div>
 
             {/* Availability & Working Hours */}
-            <div className="bg-[#070811] p-4 rounded-xl border border-purple-500/10 space-y-3">
+            <div className="bg-[#070811] p-4 rounded-xl border border-[#7C3AED] space-y-3">
               <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
                 Availability & Schedule
               </h3>
@@ -459,8 +458,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
                       {ch === 'email' ? <Mail className="w-3 h-3 text-purple-300" /> : null}
                       {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-300" /> : null}
                       {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-300" /> : null}
-                      {ch === 'sms' ? <Smartphone className="w-3 h-3 text-emerald-300" /> : null}
-                      {ch === 'message' || ch === 'messages' ? <MessageSquare className="w-3 h-3 text-emerald-300" /> : null}
+                      {ch === 'sms' || ch === 'message' || ch === 'messages' ? <Smartphone className="w-3 h-3 text-emerald-300" /> : null}
                       {ch}
                     </span>
                   ))}
@@ -469,7 +467,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
             </div>
 
             {/* Skillset & Specialization */}
-            <div className="bg-[#070811] p-4 rounded-xl border border-purple-500/10 space-y-3">
+            <div className="bg-[#070811] p-4 rounded-xl border border-[#7C3AED] space-y-3">
               <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
                 Skillset & Territory Alignment
               </h3>
@@ -543,7 +541,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
               )}
 
               {assignments.length === 0 ? (
-                <div className="p-4 bg-[#070811] rounded-xl border border-purple-500/10 text-slate-500 text-center">
+                <div className="p-4 bg-[#070811] rounded-xl border border-[#7C3AED] text-slate-500 text-center">
                   No active campaign assignments.
                 </div>
               ) : (
@@ -642,7 +640,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
             </div>
 
             {/* Approval Workload & Monitoring Connection (Section 12) */}
-            <div className="bg-[#070811] p-4 rounded-xl border border-purple-500/10 space-y-2.5">
+            <div className="bg-[#070811] p-4 rounded-xl border border-[#7C3AED] space-y-2.5">
               <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
                 Approval Workload & SLAs
               </h3>

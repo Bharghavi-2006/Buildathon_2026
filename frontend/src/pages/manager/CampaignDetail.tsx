@@ -213,31 +213,31 @@ export const CampaignDetail: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4 text-center">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-white">{totalDiscovered}</div>
               <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Discovered</div>
             </div>
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4 text-center">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-purple-300">{researchedCount}</div>
               <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Researched</div>
             </div>
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4 text-center">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-emerald-400">{icpFitCount}</div>
               <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">ICP Fit</div>
             </div>
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4 text-center">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-amber-400">{contactedCount}</div>
               <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Contacted</div>
             </div>
-            <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-4 text-center">
+            <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-emerald-300">{meetingsCount}</div>
               <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Meetings</div>
             </div>
           </div>
 
-          <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6">
+          <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Policy Instructions</h3>
-            <p className="text-sm text-slate-300 leading-relaxed font-mono bg-[#070811] p-4 rounded-xl border border-purple-500/10">
+            <p className="text-sm text-slate-300 leading-relaxed font-mono bg-[#070811] p-4 rounded-xl border border-[#7C3AED]">
               {campaign.instructions || 'Standard deterministic policy rules apply.'}
             </p>
           </div>
@@ -246,7 +246,7 @@ export const CampaignDetail: React.FC = () => {
 
       {/* Tab 2: Prospects Table */}
       {activeTab === 'prospects' && (
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -328,12 +328,12 @@ export const CampaignDetail: React.FC = () => {
         <div className="space-y-4">
           {teamLoading && <div className="text-sm text-slate-400">Loading team...</div>}
           {!teamLoading && !team.length && (
-            <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-500 text-sm">
+            <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-8 text-center text-slate-500 text-sm">
               No representatives assigned to this campaign yet.
             </div>
           )}
           {team.map((row) => (
-            <div key={row.representative.id} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5">
+            <div key={row.representative.id} className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600/40 to-indigo-700/40 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-200">
@@ -383,12 +383,12 @@ export const CampaignDetail: React.FC = () => {
           )}
           {conversationsLoading && <div className="text-sm text-slate-400">Loading conversations...</div>}
           {!conversationsLoading && !conversations.filter((c) => c.status === 'OPEN' || c.status === 'MEETING_INTENT').length && (
-            <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-8 text-center text-slate-500 text-sm">
+            <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-8 text-center text-slate-500 text-sm">
               No open conversations right now.
             </div>
           )}
           {conversations.filter((c) => c.status === 'OPEN' || c.status === 'MEETING_INTENT').map((conv) => (
-            <div key={conv.id} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5">
+            <div key={conv.id} className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
                   <div className="font-semibold text-white text-sm">
@@ -399,7 +399,7 @@ export const CampaignDetail: React.FC = () => {
                 <StatusBadge status={conv.status} />
               </div>
               {conv.last_message && (
-                <p className="text-sm text-slate-300 bg-[#070811] border border-purple-500/10 rounded-xl p-3 mb-3">
+                <p className="text-sm text-slate-300 bg-[#070811] border border-[#7C3AED] rounded-xl p-3 mb-3">
                   {conv.last_message.content}
                 </p>
               )}
@@ -436,7 +436,7 @@ export const CampaignDetail: React.FC = () => {
               return (
                 <div
                   key={a.id}
-                  className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 flex items-center justify-between"
+                  className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDeterministic ? 'bg-indigo-950/60 border border-indigo-500/40 text-indigo-300' : 'bg-purple-950/60 border border-purple-500/40 text-purple-300'}`}>
@@ -480,7 +480,7 @@ export const CampaignDetail: React.FC = () => {
                 const Icon = CHANNEL_ICON[ch.channel] || MessageSquare;
                 const botChannel: 'email' | 'linkedin' | 'sms' = ch.channel === 'message' ? 'sms' : (ch.channel as 'email' | 'linkedin');
                 return (
-                  <div key={ch.channel} className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-5 flex items-center justify-between gap-3">
+                  <div key={ch.channel} className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-950/60 border border-blue-500/40 text-blue-300">
                         <Icon className="w-5 h-5" />

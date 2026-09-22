@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, CheckSquare, HelpCircle, LayoutGrid, LineChart, LogOut, Megaphone, MessageSquare, Settings, ShieldAlert } from 'lucide-react';
+import { Bell, CheckSquare, HelpCircle, LayoutGrid, LineChart, LogOut, Megaphone, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { representativeApi } from '../../api/representative';
-import { hurdlesApi } from '../../api/hurdles';
 import { controlApi } from '../../api/control';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -12,7 +11,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-[#161a37]'
   }`;
 
-const RepSidebar: React.FC<{ pendingApprovals: number; escalatedHurdles: number }> = ({ pendingApprovals, escalatedHurdles }) => {
+const RepSidebar: React.FC<{ pendingApprovals: number }> = ({ pendingApprovals }) => {
   const { currentUser } = useAuth();
   const displayName = currentUser?.user?.name || 'Loading…';
 
@@ -35,12 +34,7 @@ const RepSidebar: React.FC<{ pendingApprovals: number; escalatedHurdles: number 
             <CheckSquare className="w-4 h-4" />Approval Inbox
             {pendingApprovals > 0 && <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-950/70 text-purple-200 border border-purple-500/30">{pendingApprovals}</span>}
           </NavLink>
-          <NavLink to="/rep/conversations" className={navLinkClass}><MessageSquare className="w-4 h-4" />Conversations</NavLink>
           <NavLink to="/rep/monitoring" className={navLinkClass}><LineChart className="w-4 h-4" />Monitoring</NavLink>
-          <NavLink to="/rep/hurdles" className={navLinkClass}>
-            <ShieldAlert className="w-4 h-4" />AI Hurdles
-            {escalatedHurdles > 0 && <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-950/70 text-rose-200 border border-rose-500/30">{escalatedHurdles}</span>}
-          </NavLink>
         </nav>
       </div>
       <div className="pt-6 border-t border-[#35285E]">
@@ -76,18 +70,16 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         {used} / {limit} capacity
       </div>
-      <div className="relative">
-        <button
-          title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
-          className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-300' : 'bg-[#12152d] border-purple-500/15 text-slate-300 hover:border-purple-500/40'}`}
-        >
-          <Bell className="w-4 h-4" />
-        </button>
-      </div>
+      <button
+        title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
+        className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${killActive ? 'text-rose-300' : 'text-slate-300 hover:text-white'}`}
+      >
+        <Bell className="w-4 h-4" />
+      </button>
       <div className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className="w-9 h-9 rounded-full bg-purple-600/40 border border-purple-500/50 flex items-center justify-center text-xs font-bold text-purple-100"
+          className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white"
         >
           {name.charAt(0).toUpperCase()}
         </button>
@@ -113,15 +105,13 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
 
 export const RepLayout: React.FC = () => {
   const { data: workspace } = useQuery({ queryKey: ['rep-workspace'], queryFn: representativeApi.workspace, refetchInterval: 15000 });
-  const { data: hurdles } = useQuery({ queryKey: ['rep-hurdles'], queryFn: hurdlesApi.list, refetchInterval: 20000 });
   const pendingApprovals = workspace?.metrics?.pending_approvals || 0;
-  const escalatedHurdles = (hurdles || []).filter((h: any) => h.status === 'ESCALATED').length;
   const used = workspace?.metrics?.capacity_used || 0;
   const limit = workspace?.metrics?.capacity_limit || 0;
 
   return (
     <div className="flex min-h-screen bg-[#070811]">
-      <RepSidebar pendingApprovals={pendingApprovals} escalatedHurdles={escalatedHurdles} />
+      <RepSidebar pendingApprovals={pendingApprovals} />
       <div className="flex-1 flex flex-col min-w-0 bg-[#0D0B1E]">
         <RepTopBar used={used} limit={limit} />
         <main className="workspace-page flex-1 p-8 max-w-7xl w-full mx-auto">

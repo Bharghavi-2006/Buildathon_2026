@@ -14,7 +14,7 @@ export const RepresentativeSettings: React.FC = () => {
         <p className="text-sm text-slate-400 mt-1">Your profile and working parameters. Campaign configuration is managed by your manager.</p>
       </div>
 
-      <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-5 space-y-3">
+      <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-5 space-y-3">
         <h2 className="text-sm font-semibold text-white">Profile</h2>
         <div className="grid sm:grid-cols-2 gap-4 text-xs">
           <div><div className="text-slate-500">Name</div><div className="text-slate-200 mt-0.5">{currentUser?.user?.name || '—'}</div></div>
@@ -26,7 +26,7 @@ export const RepresentativeSettings: React.FC = () => {
       {isLoading && <div className="text-slate-400 text-sm">Loading working profile…</div>}
       {error && <div className="text-rose-300 text-sm">Unable to load working profile.</div>}
       {data && (
-        <div className="bg-[#0d0f22] border border-purple-500/10 rounded-xl p-5 space-y-3">
+        <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-xl p-5 space-y-3">
           <h2 className="text-sm font-semibold text-white">Working profile</h2>
           <div className="grid sm:grid-cols-2 gap-4 text-xs">
             <div><div className="text-slate-500">Timezone</div><div className="text-slate-200 mt-0.5">{data.representative_profile.timezone || 'Not configured'}</div></div>

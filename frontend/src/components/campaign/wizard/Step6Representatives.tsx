@@ -246,7 +246,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
         </div>
       )}
 
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-6">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-6">
         {/* Routing Strategy Header */}
         <div className="flex items-center justify-between border-b border-purple-500/10 pb-4 flex-wrap gap-4">
           <div>
@@ -283,7 +283,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
         </div>
 
         {/* Representatives Table */}
-        <div className="overflow-x-auto rounded-xl border border-purple-500/10 bg-[#070811]">
+        <div className="overflow-x-auto rounded-xl border border-[#7C3AED] bg-[#070811]">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-purple-500/10 text-slate-400 font-semibold bg-white/5">
@@ -485,7 +485,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
         </div>
 
         {/* Rep Selection Summary */}
-        <div className="flex items-center justify-between text-xs text-slate-400 bg-white/5 border border-purple-500/10 rounded-xl px-4 py-3">
+        <div className="flex items-center justify-between text-xs text-slate-400 bg-white/5 border border-[#7C3AED] rounded-xl px-4 py-3">
           <span>
             Selected Representatives: <strong className="text-white">{selectedRepIds.length} assigned</strong>
           </span>
