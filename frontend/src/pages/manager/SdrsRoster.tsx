@@ -197,7 +197,7 @@ export const SdrsRoster: React.FC = () => {
         (statusFilter === 'inactive' && r.profile.active === false);
 
       // Channel
-      const channels = r.profile.supported_channels || ['email', 'linkedin'];
+      const channels = r.profile.supported_channels?.length ? r.profile.supported_channels : ['email', 'linkedin'];
       const channelMatch =
         channelFilter === 'all' || channels.map((c) => c.toLowerCase()).includes(channelFilter.toLowerCase());
 
@@ -537,7 +537,7 @@ export const SdrsRoster: React.FC = () => {
               <tbody className="divide-y divide-purple-500/10">
                 {filteredReps.map((rep) => {
                   const isInactive = rep.profile.active === false;
-                  const channels = rep.profile.supported_channels || ['email', 'linkedin'];
+                  const channels = rep.profile.supported_channels?.length ? rep.profile.supported_channels : ['email', 'linkedin'];
                   const capacityState = rep.capacityState;
 
                   let capacityBadge = 'bg-emerald-950/50 text-emerald-300 border-emerald-500/30';

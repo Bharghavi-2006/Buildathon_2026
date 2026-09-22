@@ -450,7 +450,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
               <div className="pt-2 border-t border-purple-500/10">
                 <span className="text-[11px] text-slate-500 block mb-1.5">Supported Outreach Channels</span>
                 <div className="flex flex-wrap gap-2">
-                  {(profile?.supported_channels || ['email', 'linkedin']).map((ch) => (
+                  {(profile?.supported_channels?.length ? profile.supported_channels : ['email', 'linkedin']).map((ch) => (
                     <span
                       key={ch}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-purple-500/20 text-slate-200 text-xs capitalize"
