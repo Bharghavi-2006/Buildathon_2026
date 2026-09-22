@@ -576,7 +576,8 @@ async def rep_workspace(db:AsyncSession=Depends(get_session),identity=Depends(cu
         has_conflict=False
         for _,cp,p in lead_rows:
             if cp.campaign_id==campaign.id and await prospect_conflict(db,p.id,campaign.id): has_conflict=True; break
-        campaign_cards.append({'campaign':dump(campaign),'workload':len(assigned),'open_conversations':open_count,'channels':channel_list,'has_conflict':has_conflict})
+        enabled_agents=[a.agent_type for a in (await db.scalars(select(CampaignAgent).where(CampaignAgent.campaign_id==campaign.id,CampaignAgent.enabled==True))).all()]
+        campaign_cards.append({'campaign':dump(campaign),'workload':len(assigned),'open_conversations':open_count,'channels':channel_list,'has_conflict':has_conflict,'enabled_agents':enabled_agents})
     used=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status.in_(['SENT','SCHEDULED']),ApprovalRequest.updated_at>datetime.utcnow()-timedelta(days=1))) or 0
     limit=next((a.daily_send_limit for a in assignments if a.daily_send_limit is not None),25)
     approval_items=[]
@@ -694,6 +695,152 @@ async def rep_hurdle_attach_knowledge(id:str,data:HurdleKnowledgeIn,db:AsyncSess
     db.add(doc); await db.flush()
     db.add(AuditLog(action='KNOWLEDGE_ATTACHED',entity_type='knowledge_document',entity_id=doc.id,details={'actor':user.id,'role':'REPRESENTATIVE','campaign_id':h.campaign_id,'hurdle_id':h.id}))
     await db.commit(); return dump(doc)
+
+# Rep monitoring: a performance read model built entirely from the rep's own approvals,
+# conversations, and hurdles — no separate analytics pipeline, same tables the rest of the
+# rep workspace already reads.
+@app.get('/api/rep/monitoring')
+async def rep_monitoring(db:AsyncSession=Depends(get_session),identity=Depends(current_identity)):
+    user,profile=identity
+    if profile.role!='REPRESENTATIVE': raise HTTPException(403,'Representative role required')
+    await ensure_hurdles(db)
+    assignments=(await db.scalars(select(CampaignAssignment).where(CampaignAssignment.representative_id==user.id,CampaignAssignment.active==True))).all()
+    campaign_ids=[a.campaign_id for a in assignments]
+    campaigns={c.id:c for c in ((await db.scalars(select(Campaign).where(Campaign.id.in_(campaign_ids)))).all() if campaign_ids else [])}
+
+    all_approvals=(await db.scalars(select(ApprovalRequest).where(ApprovalRequest.representative_id==user.id))).all()
+    decided=[a for a in all_approvals if a.status in ('SENT','REJECTED')]
+    turnaround_hours=[(a.updated_at-a.created_at).total_seconds()/3600 for a in decided]
+    avg_turnaround=round(sum(turnaround_hours)/len(turnaround_hours),1) if turnaround_hours else 0.0
+
+    today=datetime.utcnow().date()
+    cleared_by_day={today-timedelta(days=i):0 for i in range(6,-1,-1)}
+    for a in decided:
+        d=a.updated_at.date()
+        if d in cleared_by_day: cleared_by_day[d]+=1
+    approvals_cleared_last_7_days=[{'date':d.isoformat(),'day':d.strftime('%a'),'count':c} for d,c in sorted(cleared_by_day.items())]
+
+    lead_rows=(await db.execute(select(LeadAssignment,CampaignProspect,Prospect).join(CampaignProspect,LeadAssignment.campaign_prospect_id==CampaignProspect.id).join(Prospect,CampaignProspect.prospect_id==Prospect.id).where(LeadAssignment.representative_id==user.id,LeadAssignment.status=='ASSIGNED'))).all()
+    prospect_ids=[p.id for _,_,p in lead_rows]
+    conversations=(await db.execute(select(Conversation,Prospect,Campaign).join(Prospect,Conversation.prospect_id==Prospect.id).join(Campaign,Conversation.campaign_id==Campaign.id).where(Conversation.campaign_id.in_(campaign_ids),Conversation.prospect_id.in_(prospect_ids)))).all() if campaign_ids and prospect_ids else []
+    conv_campaign_id={c.id:camp.id for c,_,camp in conversations}
+    conv_ids=list(conv_campaign_id.keys())
+    messages=(await db.scalars(select(Message).where(Message.conversation_id.in_(conv_ids)).order_by(Message.created_at.asc()))).all() if conv_ids else []
+    msgs_by_conv:dict={}
+    for m in messages: msgs_by_conv.setdefault(m.conversation_id,[]).append(m)
+
+    CHANNELS=['email','linkedin','message','voice']
+    channel_conv_sent:dict={ch:set() for ch in CHANNELS}
+    channel_conv_replied:dict={ch:set() for ch in CHANNELS}
+    channel_msg_sent:dict={ch:0 for ch in CHANNELS}
+    campaign_response_times:dict={cid:[] for cid in campaign_ids}
+    campaign_sent_convs:dict={cid:0 for cid in campaign_ids}
+    campaign_response_convs:dict={cid:0 for cid in campaign_ids}
+    all_response_times=[]
+    for conv_id,msgs in msgs_by_conv.items():
+        cid=conv_campaign_id.get(conv_id)
+        outbound=[m for m in msgs if m.direction=='OUTBOUND']
+        inbound=[m for m in msgs if m.direction=='INBOUND']
+        for m in outbound: channel_msg_sent[m.channel]=channel_msg_sent.get(m.channel,0)+1
+        outbound_channels={m.channel for m in outbound}
+        has_inbound=bool(inbound)
+        for ch in outbound_channels:
+            if ch in channel_conv_sent:
+                channel_conv_sent[ch].add(conv_id)
+                if has_inbound: channel_conv_replied[ch].add(conv_id)
+        if outbound:
+            if cid in campaign_sent_convs: campaign_sent_convs[cid]+=1
+            if has_inbound and cid in campaign_response_convs: campaign_response_convs[cid]+=1
+        if outbound and inbound:
+            first_out=min(m.created_at for m in outbound)
+            after=[m.created_at for m in inbound if m.created_at>=first_out]
+            if after:
+                hrs=(min(after)-first_out).total_seconds()/3600
+                all_response_times.append(hrs)
+                if cid in campaign_response_times: campaign_response_times[cid].append(hrs)
+
+    total_sent_convs=sum(1 for msgs in msgs_by_conv.values() if any(m.direction=='OUTBOUND' for m in msgs))
+    total_response_convs=sum(1 for msgs in msgs_by_conv.values() if any(m.direction=='OUTBOUND' for m in msgs) and any(m.direction=='INBOUND' for m in msgs))
+    response_rate_pct=round(100*total_response_convs/total_sent_convs,1) if total_sent_convs else 0.0
+
+    channel_performance=[]
+    for ch in CHANNELS:
+        sent_msgs=channel_msg_sent.get(ch,0)
+        if not sent_msgs: continue
+        convs_sent=len(channel_conv_sent[ch]); convs_replied=len(channel_conv_replied[ch])
+        channel_performance.append({'channel':ch,'sent':sent_msgs,'response_rate_pct':round(100*convs_replied/convs_sent,1) if convs_sent else 0.0})
+
+    hurdles=(await db.scalars(select(Hurdle).where(Hurdle.representative_id==user.id))).all()
+    hurdles_by_campaign:dict={}
+    for h in hurdles: hurdles_by_campaign.setdefault(h.campaign_id,[]).append(h)
+    resolved_count=sum(1 for h in hurdles if h.status=='RESOLVED')
+
+    campaign_prospect_ids:dict={}
+    for _,cp,p in lead_rows: campaign_prospect_ids.setdefault(cp.campaign_id,set()).add(p.id)
+
+    performance_by_campaign=[]
+    for cid in campaign_ids:
+        camp=campaigns.get(cid)
+        if not camp: continue
+        camp_decided=[a for a in decided if a.campaign_id==cid]
+        sent_convs=campaign_sent_convs.get(cid,0); response_convs=campaign_response_convs.get(cid,0)
+        times=campaign_response_times.get(cid,[])
+        meetings=sum(1 for c,_,camp2 in conversations if camp2.id==cid and c.status=='MEETING_INTENT')
+        cid_prospect_ids=list(campaign_prospect_ids.get(cid,set()))
+        outreach_sent=await db.scalar(select(func.count()).select_from(OutreachEvent).where(OutreachEvent.campaign_id==cid,OutreachEvent.prospect_id.in_(cid_prospect_ids),OutreachEvent.status=='SENT')) if cid_prospect_ids else 0
+        performance_by_campaign.append({
+            'campaign_id':cid,'campaign_name':camp.name,
+            'approvals':len(camp_decided),
+            'outreach_sent':outreach_sent or 0,
+            'response_rate_pct':round(100*response_convs/sent_convs,1) if sent_convs else 0.0,
+            'meetings':meetings,
+            'escalations':len(hurdles_by_campaign.get(cid,[])),
+            'avg_response_hours':round(sum(times)/len(times),1) if times else 0.0,
+        })
+
+    async def hurdle_summary(h):
+        camp=campaigns.get(h.campaign_id) or await db.get(Campaign,h.campaign_id)
+        prospect=await db.get(Prospect,h.prospect_id) if h.prospect_id else None
+        return {
+            'hurdle_id':h.id,'category':h.category,'status':h.status,
+            'campaign_name':camp.name if camp else None,
+            'prospect_name':f'{prospect.first_name} {prospect.last_name}'.strip() if prospect else None,
+            'reason':h.reason,'age_hours':round((datetime.utcnow()-h.created_at).total_seconds()/3600,1),
+        }
+    open_hurdles=sorted([h for h in hurdles if h.status!='RESOLVED'],key=lambda h:h.created_at)
+    attention_required=[await hurdle_summary(h) for h in open_hurdles[:5]]
+
+    recent_hurdles=sorted(hurdles,key=lambda h:h.created_at,reverse=True)[:10]
+    escalation_history=[]
+    for h in recent_hurdles:
+        camp=campaigns.get(h.campaign_id) or await db.get(Campaign,h.campaign_id)
+        prospect=await db.get(Prospect,h.prospect_id) if h.prospect_id else None
+        owner=await db.get(User,h.resolved_by_id) if h.resolved_by_id else None
+        escalation_history.append({
+            'hurdle_id':h.id,'category':h.category,'status':h.status,
+            'campaign_name':camp.name if camp else None,
+            'prospect_name':f'{prospect.first_name} {prospect.last_name}'.strip() if prospect else None,
+            'owner':owner.name if owner else user.name,
+            'timestamp':h.resolved_at if h.status=='RESOLVED' and h.resolved_at else h.created_at,
+        })
+
+    used=await db.scalar(select(func.count()).select_from(ApprovalRequest).where(ApprovalRequest.representative_id==user.id,ApprovalRequest.status.in_(['SENT','SCHEDULED']),ApprovalRequest.updated_at>datetime.utcnow()-timedelta(days=1))) or 0
+    limit=next((a.daily_send_limit for a in assignments if a.daily_send_limit is not None),25)
+
+    return {
+        'summary':{
+            'avg_approval_turnaround_hours':avg_turnaround,
+            'response_rate_pct':response_rate_pct,
+            'meetings_booked':sum(c.status=='MEETING_INTENT' for c,_,_ in conversations),
+            'escalations':{'resolved':resolved_count,'total':len(hurdles),'pending':len(hurdles)-resolved_count},
+        },
+        'approvals_cleared_last_7_days':approvals_cleared_last_7_days,
+        'daily_capacity':{'used':used,'limit':limit,'pct':round(100*used/limit) if limit else 0},
+        'performance_by_campaign':performance_by_campaign,
+        'channel_performance':channel_performance,
+        'attention_required':attention_required,
+        'escalation_history':escalation_history,
+    }
 
 # Rep guardrails: read-only projection of campaign config, channel state, working hours, capacity, and conflicts.
 # Every figure here is read directly from the same tables PolicyEngine authoritatively checks against.
