@@ -7,9 +7,6 @@ import {
   Filter,
   Plus,
   AlertTriangle,
-  Mail,
-  Linkedin,
-  Phone,
   Globe,
   Loader2,
   AlertCircle,
@@ -21,7 +18,6 @@ import {
   Sparkles,
   ExternalLink,
   HelpCircle,
-  Smartphone,
 } from 'lucide-react';
 import { representativesApi } from '../../api/representatives';
 import { campaignsApi } from '../../api/campaigns';
@@ -30,6 +26,16 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AddRepresentativeModal } from '../../components/sdrs/AddRepresentativeModal';
 import { RepresentativeDetailDrawer } from '../../components/sdrs/RepresentativeDetailDrawer';
 import { RepMatchItem } from '../../types';
+
+const CHANNEL_LABEL: Record<string, string> = {
+  email: 'Email',
+  linkedin: 'LinkedIn',
+  sms: 'SMS',
+  message: 'SMS',
+  messages: 'SMS',
+  voice: 'Voice',
+  call: 'Voice',
+};
 
 export const SdrsRoster: React.FC = () => {
   const { role, switchUser } = useAuth();
@@ -571,17 +577,13 @@ export const SdrsRoster: React.FC = () => {
 
                       {/* Channels */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           {channels.map((ch) => (
                             <span
                               key={ch}
-                              title={ch}
-                              className="w-6 h-6 rounded-md bg-[#070811] border border-[#7C3AED] flex items-center justify-center text-slate-400"
+                              className="px-2 py-0.5 rounded-md bg-[#070811] border border-[#7C3AED] text-[10px] font-medium text-slate-300"
                             >
-                              {ch === 'email' ? <Mail className="w-3 h-3 text-purple-400" /> : null}
-                              {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-400" /> : null}
-                              {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-400" /> : null}
-                              {ch === 'sms' || ch === 'message' || ch === 'messages' ? <Smartphone className="w-3 h-3 text-emerald-400" /> : null}
+                              {CHANNEL_LABEL[ch] || ch}
                             </span>
                           ))}
                         </div>
