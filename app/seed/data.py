@@ -19,6 +19,10 @@ HERO_TIMEZONE = 'America/Los_Angeles'
 # match for rep-matching (below) while never blocking a live send regardless of clock time.
 HERO_HOURS = {'timezone': HERO_TIMEZONE, 'start': 0, 'end': 24}
 
+# Every campaign redirects real outbound sends to this single fixed inbox for the demo --
+# never a per-campaign configurable "demo mode" the UI exposes, just always-on safe delivery.
+DEMO_RECIPIENT_EMAIL = 'ch24b007@smail.iitm.ac.in'
+
 
 async def seed(db):
     # Check if comprehensive seed is already applied
@@ -37,10 +41,12 @@ async def seed(db):
     # 1. Users & Access Profiles
     manager = await db.scalar(select(User).where(User.email == 'manager@demo.local'))
     if not manager:
-        manager = User(name='Demo Manager', email='manager@demo.local')
+        manager = User(name='Arjun', email='manager@demo.local')
         db.add(manager)
         await db.flush()
         db.add(AccessProfile(user_id=manager.id, role='MANAGER', max_active_leads=0))
+    elif manager.name != 'Arjun':
+        manager.name = 'Arjun'
 
     # Aisha's specialties/regions/timezone/channels are set to be a near-perfect
     # configuration match for Campaign 1 (the hero campaign below) -- this demonstrates
@@ -102,6 +108,7 @@ async def seed(db):
         active_channels=['email', 'linkedin', 'message', 'voice'],
         daily_outreach_limit=25,
         approval_required=True,
+        demo_recipient_email=DEMO_RECIPIENT_EMAIL,
     )
     camp_2 = Campaign(
         name='US SaaS Enterprise CTOs',
@@ -113,9 +120,10 @@ async def seed(db):
         target_roles=['CTO', 'CIO', 'VP Engineering'],
         company_size={'min': 200, 'max': 5000},
         instructions='Focus on engineering velocity, autonomous outbound workflows, and developer productivity.',
-        active_channels=['email', 'linkedin'],
+        active_channels=['email', 'linkedin', 'voice'],
         daily_outreach_limit=25,
         approval_required=True,
+        demo_recipient_email=DEMO_RECIPIENT_EMAIL,
     )
     camp_3 = Campaign(
         name='India BFSI Digital Transformation Leaders',
@@ -127,9 +135,10 @@ async def seed(db):
         target_roles=['CIO', 'CTO', 'CDO', 'Head of Digital', 'VP Technology'],
         company_size={'min': 500, 'max': 5000},
         instructions='Emphasize enterprise compliance, deterministic policies, data sovereignty, and audit trails.',
-        active_channels=['email', 'linkedin'],
+        active_channels=['email', 'linkedin', 'voice'],
         daily_outreach_limit=15,
         approval_required=True,
+        demo_recipient_email=DEMO_RECIPIENT_EMAIL,
     )
     db.add_all([camp_1, camp_2, camp_3])
     await db.flush()
@@ -193,12 +202,18 @@ async def seed(db):
         ('Elena', 'Petrova', 'wavepoint', 'Director Engineering', 'Denver, US', '+1-720-555-0309', 'pending'),
         ('Priya', 'Nair', 'freshworks', 'CTO', 'San Mateo, US', '+1-650-555-0310', 'contacted'),
     ]
+    # Elena Petrova's approval is drafted on the LinkedIn channel, so she gets a real,
+    # clickable LinkedIn profile for live demos rather than a fabricated linkedin.com/in/ URL.
+    REAL_LINKEDIN_URLS = {
+        'Elena_Petrova': 'https://www.linkedin.com/in/venkata-bharghavi-dharmavaram-53903a346/',
+    }
     hero_prospects = {}
     for first, last, company_key, title, location, phone, stage in HERO_PROSPECT_DEFS:
         company = companies[company_key]
         email = f'{first.lower()}.{last.lower()}@{company.website.replace("https://", "")}'
+        linkedin_url = REAL_LINKEDIN_URLS.get(f'{first}_{last}', f'https://linkedin.com/in/{first.lower()}{last.lower()}')
         p = Prospect(first_name=first, last_name=last, email=email, phone=phone,
-                      linkedin_url=f'https://linkedin.com/in/{first.lower()}{last.lower()}', title=title,
+                      linkedin_url=linkedin_url, title=title,
                       company_id=company.id, location=location, industry=company.industry,
                       employee_count=company.employee_count, website=company.website,
                       lifecycle_status='DISCOVERED' if stage == 'discovered' else 'RESEARCHED' if stage.startswith('researched') else 'CONTACTED' if stage == 'contacted' else 'QUALIFIED',
@@ -280,6 +295,38 @@ async def seed(db):
     await db.flush()
     db.add(Message(conversation_id=conv_1_priya.id, direction='OUTBOUND', channel='email', subject='Autonomous outbound for engineering-led SaaS teams', content=f'Hi {freshworks_prospect.first_name}, saw your team\'s recent platform expansion. We help engineering-led SaaS orgs run policy-governed outbound without pulling engineers into pipeline ops.'))
     db.add(Message(conversation_id=conv_1_priya.id, direction='INBOUND', channel='email', subject='Re: Autonomous outbound for engineering-led SaaS teams', content='Interesting -- can you share how the approval workflow and audit trail work before we consider a pilot?'))
+
+    # Demo conversations across every non-email channel, so SMS/LinkedIn/Voice each have a
+    # real example thread visible without first triggering a live simulation.
+    naomi, _, _ = hero_prospects['qualified_Naomi']
+    conv_1_naomi_sms = Conversation(campaign_id=camp_1.id, prospect_id=naomi.id, status='OPEN')
+    db.add(conv_1_naomi_sms)
+    await db.flush()
+    db.add(Message(conversation_id=conv_1_naomi_sms.id, direction='OUTBOUND', channel='message', content=f'Hi {naomi.first_name}, this is Aisha from the SDR platform team -- saw Corex is modernizing its platform architecture. Worth a quick text exchange on how we keep outbound policy-governed?'))
+    db.add(Message(conversation_id=conv_1_naomi_sms.id, direction='INBOUND', channel='message', content='Sure, go ahead -- keep it brief, I am between meetings.'))
+
+    grace, _, _ = hero_prospects['qualified_Grace']
+    conv_1_grace_linkedin = Conversation(campaign_id=camp_1.id, prospect_id=grace.id, status='OPEN')
+    db.add(conv_1_grace_linkedin)
+    await db.flush()
+    db.add(Message(conversation_id=conv_1_grace_linkedin.id, direction='OUTBOUND', channel='linkedin', content=f'Hi {grace.first_name}, congrats on Fieldstone\'s recent platform milestones. We help engineering-led SaaS orgs run policy-governed outbound without pulling engineers into pipeline ops -- open to connecting?'))
+    db.add(Message(conversation_id=conv_1_grace_linkedin.id, direction='INBOUND', channel='linkedin', content='Thanks for reaching out -- connected. Curious how the approval workflow holds up at scale.'))
+
+    ben, _, _ = hero_prospects['qualified_Ben']
+    conv_1_ben_voice = Conversation(campaign_id=camp_1.id, prospect_id=ben.id, status='OPEN')
+    db.add(conv_1_ben_voice)
+    await db.flush()
+    voice_transcript = [
+        {'speaker': 'AI', 'text': f'Hi, this is the Autonomous SDR platform calling on behalf of our team for {ben.first_name}. Do you have two minutes?'},
+        {'speaker': 'Prospect', 'text': 'I can spare a couple of minutes, sure.'},
+        {'speaker': 'AI', 'text': 'Great -- we help engineering-led SaaS orgs like Bridgeline run policy-governed outbound without pulling engineers into pipeline ops. Would a short follow-up call with more detail make sense next week?'},
+    ]
+    db.add(Message(conversation_id=conv_1_ben_voice.id, direction='OUTBOUND', channel='voice', content=voice_transcript[0]['text']))
+    db.add(Message(conversation_id=conv_1_ben_voice.id, direction='INBOUND', channel='voice', content=voice_transcript[1]['text']))
+    db.add(Message(conversation_id=conv_1_ben_voice.id, direction='OUTBOUND', channel='voice', content=voice_transcript[2]['text']))
+    await db.flush()
+    db.add(AgentRun(campaign_id=camp_1.id, prospect_id=ben.id, agent_type='VOICE', status='COMPLETED', output_data={'call_status': 'DEMO_CONNECTED', 'transcript': voice_transcript, 'intent': 'INTERESTED', 'outcome': 'FOLLOW_UP_REQUIRED', 'policy': 'ALLOW', 'human_escalation': False}))
+    db.add(OutreachEvent(campaign_id=camp_1.id, prospect_id=ben.id, channel='voice', status='SENT', content=voice_transcript[0]['text']))
 
     # 9. Research + ICP Fitment for every hero prospect that has reached at least
     # RESEARCHED (8 total): 2 disqualified, 3 qualified-only, 2 pending, 1 contacted.
@@ -489,6 +536,18 @@ async def seed(db):
                  'source_references': [companies['freshworks'].website]}, status='SENT', decision_note='Approved by representative')
     app_hero_sent.created_at = datetime.utcnow() - timedelta(hours=6)
     db.add(app_hero_sent)
+    await db.flush()
+
+    # A genuine follow-up draft: Priya Nair already replied asking about the approval
+    # workflow and audit trail (conv_1_priya, above) -- this is the AI's drafted answer,
+    # still awaiting rep approval, so expanding it in the approval inbox shows the entire
+    # real conversation that led up to it rather than a cold first touch.
+    app_hero_followup = ApprovalRequest(campaign_id=camp_1.id, campaign_prospect_id=hero_cps['contacted_Priya'].id, representative_id=aisha.id, request_type='FOLLOW_UP',
+        payload={'channel': 'email', 'subject': 'Re: Autonomous outbound for engineering-led SaaS teams', 'priority': 'HIGH', 'intent': 'FOLLOW_UP', 'agent': 'PERSONALIZATION', 'prompt_version': '1.0.0',
+                 'message': f'Hi {freshworks_prospect.first_name}, great question. Every send passes through a deterministic policy engine and is gated behind representative approval -- nothing goes out without a human in the loop. We keep a full audit trail (policy decision, approver, timestamp, and delivery record) for every message. Happy to walk through the audit log in a short call this week?',
+                 'source_references': [companies['freshworks'].website]}, status='PENDING')
+    app_hero_followup.created_at = datetime.utcnow() - timedelta(hours=1)
+    db.add(app_hero_followup)
     await db.flush()
 
     # 11. Agent Runs & Outreach Events (funnel/analytics evidence)

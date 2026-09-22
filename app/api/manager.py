@@ -415,6 +415,34 @@ async def activate_prompt(id:str,prompt_id:str,db:AsyncSession=Depends(get_sessi
     others=(await db.scalars(select(PromptVersion).where(PromptVersion.agent_type==p.agent_type,PromptVersion.configuration['campaign_id'].as_string()==id))).all()
     for item in others: item.active=item.id==p.id
     audit(db,'PROMPT_ACTIVATED','prompt',p.id); await db.commit(); return out(p)
+
+# Campaign knowledge base: the source material SimpleRetriever's campaign-scoped RAG
+# (app/rag/retriever.py) draws on when drafting outreach for this campaign. A manager
+# adds a document here (pasted text, or a .txt/.md file read client-side since the
+# browser already has the text); it's stored as a KnowledgeDocument scoped to this
+# campaign and immediately eligible for retrieval on the next generated draft.
+@router.get('/campaigns/{id}/knowledge')
+async def list_knowledge(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign(id,db)
+    rows=(await db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.category==f'campaign_{id}').order_by(KnowledgeDocument.created_at.desc()))).all()
+    return [out(x) for x in rows]
+@router.post('/campaigns/{id}/knowledge')
+async def add_knowledge(id:str,data:HurdleKnowledgeIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign(id,db)
+    if not data.title.strip() or not data.content.strip(): raise HTTPException(422,'title and content are required')
+    doc=KnowledgeDocument(title=data.title.strip(),content=data.content.strip(),category=f'campaign_{id}')
+    db.add(doc); await db.flush()
+    audit(db,'KNOWLEDGE_ATTACHED','knowledge_document',doc.id,{'actor':identity[0].id,'campaign_id':id})
+    await db.commit(); return out(doc)
+@router.delete('/campaigns/{id}/knowledge/{doc_id}')
+async def remove_knowledge(id:str,doc_id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
+    await campaign(id,db)
+    doc=await db.get(KnowledgeDocument,doc_id)
+    if not doc or doc.category!=f'campaign_{id}': raise HTTPException(404,'Knowledge document not found on this campaign')
+    await db.delete(doc)
+    audit(db,'KNOWLEDGE_REMOVED','knowledge_document',doc_id,{'actor':identity[0].id,'campaign_id':id})
+    await db.commit(); return {'status':'removed'}
+
 async def launch_checks(c,db):
     setup=await setup_for(c,db); agents=await db.scalar(select(func.count()).select_from(CampaignAgent).where(CampaignAgent.campaign_id==c.id,CampaignAgent.enabled==True)) or 0; prospects=(await db.scalars(select(CampaignProspect).where(CampaignProspect.campaign_id==c.id))).all(); channels=await db.scalar(select(func.count()).select_from(CampaignChannelSettings).where(CampaignChannelSettings.campaign_id==c.id,CampaignChannelSettings.enabled==True)) or 0; prompts_count=await db.scalar(select(func.count()).select_from(PromptVersion).where(PromptVersion.configuration['campaign_id'].as_string()==c.id,PromptVersion.active==True)) or 0; reps=await db.scalar(select(func.count()).select_from(CampaignAssignment).where(CampaignAssignment.campaign_id==c.id,CampaignAssignment.active==True)) or 0
     has_conflicts = False

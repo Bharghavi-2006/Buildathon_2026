@@ -16,7 +16,7 @@ export const Sidebar: React.FC = () => {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center font-bold text-white shadow-md shadow-purple-900/30">
             {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="font-semibold text-white tracking-tight">{displayName}</div>
+          <div className="font-semibold text-white tracking-tight">{displayName} · Manager</div>
         </div>
 
         <nav className="space-y-1">

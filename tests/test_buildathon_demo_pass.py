@@ -48,9 +48,9 @@ async def test_hero_campaign_funnel_matches_the_spec_exactly():
         qualified = [cp for cp in cps if cp.qualification_status == 'QUALIFIED']
         assert len(qualified) == 6  # QUALIFIED: 6
         approvals = (await db.scalars(select(ApprovalRequest).where(ApprovalRequest.campaign_id == camp.id))).all()
-        assert len(approvals) == 3  # OUTREACH READY: 3
+        assert len(approvals) == 4  # OUTREACH READY: 2 cold drafts + 1 sent + 1 follow-up draft on the sent thread
         pending = [a for a in approvals if a.status == 'PENDING']
-        assert len(pending) == 2  # PENDING APPROVAL: 2
+        assert len(pending) == 3  # PENDING APPROVAL: 2 cold drafts + 1 follow-up (with real conversation history)
         sent = [a for a in approvals if a.status == 'SENT']
         assert len(sent) == 1  # CONTACTED: 1
 

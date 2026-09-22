@@ -273,4 +273,34 @@ export const campaignsApi = {
   }> => {
     return await apiClient.post(`/api/manager/campaigns/${campaignId}/prospects/${prospectId}/demo-voice-call`);
   },
+
+  // Campaign knowledge base -- source material for this campaign's RAG retrieval
+  // (SimpleRetriever), scoped by category to just this campaign.
+  getKnowledge: async (campaignId: string): Promise<Array<{ id: string; title: string; content: string; category: string; created_at: string }>> => {
+    return await apiClient.get(`/api/manager/campaigns/${campaignId}/knowledge`);
+  },
+  addKnowledge: async (campaignId: string, title: string, content: string): Promise<{ id: string; title: string; content: string }> => {
+    return await apiClient.post(`/api/manager/campaigns/${campaignId}/knowledge`, { title, content });
+  },
+  removeKnowledge: async (campaignId: string, docId: string): Promise<{ status: string }> => {
+    return await apiClient.delete(`/api/manager/campaigns/${campaignId}/knowledge/${docId}`);
+  },
+
+  // Manager review of a specific approval (e.g. opened from an aging-approval alert):
+  // same approve/edit/reject actions a representative has, plus full context.
+  getManagerApproval: async (approvalId: string): Promise<any> => {
+    return await apiClient.get(`/api/manager/approvals/${approvalId}`);
+  },
+  getManagerApprovalContext: async (approvalId: string): Promise<any> => {
+    return await apiClient.get(`/api/manager/approvals/${approvalId}/context`);
+  },
+  managerApproveApproval: async (approvalId: string): Promise<any> => {
+    return await apiClient.post(`/api/manager/approvals/${approvalId}/approve`);
+  },
+  managerEditApproveApproval: async (approvalId: string, content: string): Promise<any> => {
+    return await apiClient.post(`/api/manager/approvals/${approvalId}/edit-approve`, { content });
+  },
+  managerRejectApproval: async (approvalId: string, reason: string): Promise<any> => {
+    return await apiClient.post(`/api/manager/approvals/${approvalId}/reject`, { reason });
+  },
 };

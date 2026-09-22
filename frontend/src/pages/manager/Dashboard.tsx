@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pause, Play, ArrowRight, Loader2, X, Clock, MessageSquare, CalendarCheck, AlertOctagon } from 'lucide-react';
+import { Plus, Pause, Play, ArrowRight, Loader2, X, Clock, MessageSquare, CalendarCheck, AlertOctagon, ChevronRight } from 'lucide-react';
 import { campaignsApi } from '../../api/campaigns';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AlertBanner } from '../../components/ui/AlertBanner';
+import { ManagerApprovalReview } from '../../components/campaign/ManagerApprovalReview';
 
 type PanelKind = 'approvals' | 'replies' | 'meetings' | 'alerts' | null;
 
@@ -20,6 +21,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activePanel, setActivePanel] = useState<PanelKind>(null);
+  const [reviewApprovalId, setReviewApprovalId] = useState<string | null>(null);
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['manager-dashboard'],
@@ -128,7 +130,7 @@ export const Dashboard: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-900/30 transition-all"
         >
           <Plus className="w-4 h-4" />
-          + New Campaign
+          New Campaign
         </button>
       </div>
 
@@ -393,20 +395,41 @@ export const Dashboard: React.FC = () => {
 
             {activePanel === 'alerts' && (
               <div className="space-y-3">
-                {alerts?.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-purple-500/20 bg-[#0d0f22] p-3.5 flex items-start gap-3">
-                    <AlertOctagon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${a.severity === 'HIGH' ? 'text-rose-400' : 'text-amber-400'}`} />
-                    <div>
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{a.type.replace(/_/g, ' ')}</div>
-                      <p className="text-sm text-white mt-0.5">{a.message}</p>
+                {alerts?.map((a) => {
+                  const isApproval = a.type === 'AGING_APPROVAL';
+                  const content = (
+                    <>
+                      <AlertOctagon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${a.severity === 'HIGH' ? 'text-rose-400' : 'text-amber-400'}`} />
+                      <div className="flex-1 text-left">
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{a.type.replace(/_/g, ' ')}</div>
+                        <p className="text-sm text-white mt-0.5">{a.message}</p>
+                        {isApproval && <span className="text-[11px] text-purple-300 font-medium mt-1 inline-flex items-center gap-0.5">Review, approve, edit or reject <ChevronRight className="w-3 h-3" /></span>}
+                      </div>
+                    </>
+                  );
+                  return isApproval ? (
+                    <button
+                      key={a.id}
+                      onClick={() => { setActivePanel(null); setReviewApprovalId(a.id); }}
+                      className="w-full rounded-xl border border-purple-500/20 bg-[#0d0f22] hover:border-purple-500/50 hover:bg-[#12152d] p-3.5 flex items-start gap-3 transition-colors"
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div key={a.id} className="rounded-xl border border-purple-500/20 bg-[#0d0f22] p-3.5 flex items-start gap-3">
+                      {content}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {!alerts?.length && <p className="text-sm text-slate-400">All systems normal — no active alerts.</p>}
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {reviewApprovalId && (
+        <ManagerApprovalReview approvalId={reviewApprovalId} onClose={() => setReviewApprovalId(null)} />
       )}
     </div>
   );
