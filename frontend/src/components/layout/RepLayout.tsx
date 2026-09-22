@@ -71,7 +71,7 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
   const name = currentUser?.user?.name || 'Representative';
 
   return (
-    <header className="h-16 border-b border-purple-500/10 bg-[#302654]/90 backdrop-blur-md px-6 flex items-center justify-end gap-3 sticky top-0 z-30">
+    <header className="h-16 border-b border-purple-500/10 bg-[#211A38] px-6 flex items-center justify-end gap-3 sticky top-0 z-30">
       <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-200' : 'bg-[#12152d] border-purple-500/20 text-slate-200'}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         {used} / {limit} capacity
@@ -122,7 +122,7 @@ export const RepLayout: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-[#070811]">
       <RepSidebar pendingApprovals={pendingApprovals} escalatedHurdles={escalatedHurdles} />
-      <div className="flex-1 flex flex-col min-w-0 bg-[#302654]">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#211A38]">
         <RepTopBar used={used} limit={limit} />
         <main className="flex-1 p-8 max-w-7xl w-full mx-auto">
           <Outlet />

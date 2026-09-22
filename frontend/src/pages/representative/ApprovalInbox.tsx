@@ -7,12 +7,13 @@ import { AlertBanner } from '../../components/ui/AlertBanner';
 
 const rejectReasons = ['WRONG_PERSONA', 'IRRELEVANT_HOOK', 'WRONG_INFORMATION', 'DUPLICATE_ACCOUNT', 'OTHER'];
 const CHANNEL_LABEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', message: 'SMS', voice: 'Voice' };
+const approvalActionClass = 'h-9 min-w-24 inline-flex items-center justify-center gap-1 px-3 text-xs font-semibold rounded-lg disabled:opacity-50';
 
 const RejectSelect: React.FC<{ onReject: (reason: string) => void; className?: string }> = ({ onReject, className }) => (
   <select
     onChange={(e) => { if (e.target.value) { onReject(e.target.value); e.target.value = ''; } }}
     defaultValue=""
-    className={className || 'text-xs font-semibold rounded-lg px-3 py-1.5 bg-rose-700 text-white border-none appearance-none cursor-pointer'}
+    className={className || `${approvalActionClass} bg-rose-700 text-white border-none appearance-none cursor-pointer`}
   >
     <option value="" disabled>Reject</option>
     {rejectReasons.map((x) => <option key={x} value={x} className="bg-[#0d0f22] text-rose-200">{x.replaceAll('_', ' ')}</option>)}
@@ -120,15 +121,19 @@ export const RepresentativeApprovalInbox: React.FC = () => {
     setDraftText(item.approval.payload?.message || item.approval.payload?.summary || '');
   };
 
+  const isReviewingDraft = expandedId !== null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+      {isReviewingDraft && <div className="flex items-center gap-1.5 text-xs text-slate-500">
         <span>Approval Inbox</span><span>/</span><span className="text-slate-300">Draft approvals</span>
-      </div>
+      </div>}
       <div>
-        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">Draft approvals</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">{isReviewingDraft ? 'Draft approvals' : 'Approval Inbox'}</h1>
         <p className="text-sm text-slate-400 mt-1">
-          {approvals.length} draft{approvals.length === 1 ? '' : 's'} need{approvals.length === 1 ? 's' : ''} your review before {approvals.length === 1 ? 'it can' : 'they can'} be sent.
+          {isReviewingDraft
+            ? `${approvals.length} draft${approvals.length === 1 ? '' : 's'} need${approvals.length === 1 ? 's' : ''} your review before ${approvals.length === 1 ? 'it can' : 'they can'} be sent.`
+            : `${approvals.length} draft${approvals.length === 1 ? '' : 's'} waiting for your review.`}
           {hotLeadIds.size ? ` ${hotLeadIds.size} hot lead${hotLeadIds.size === 1 ? '' : 's'} at the top.` : ''}
         </p>
       </div>
@@ -164,9 +169,13 @@ export const RepresentativeApprovalInbox: React.FC = () => {
           const isExpanded = expandedId === item.approval.id;
           const channel = item.approval.payload?.channel || 'email';
           return (
-            <div key={item.approval.id} className={`rounded-xl border p-4 ${hotLeadIds.has(item.approval.id) ? 'border-amber-500/30 bg-amber-950/5' : 'border-purple-500/15 bg-[#0d0f22]'}`}>
+            <div
+              key={item.approval.id}
+              onClick={() => toggleExpand(item)}
+              className={`rounded-xl border p-4 cursor-pointer transition-colors ${isExpanded ? 'border-purple-500/50 bg-[#17122f]' : hotLeadIds.has(item.approval.id) ? 'border-amber-500/30 bg-amber-950/5 hover:border-amber-500/50' : 'border-purple-500/30 bg-[#17122f] hover:border-purple-500/50'}`}
+            >
               <div className="flex items-start gap-3">
-                <input type="checkbox" checked={selected.has(item.approval.id)} onChange={() => toggleOne(item.approval.id)} className="mt-1 rounded border-purple-500/30 flex-shrink-0" />
+                <input type="checkbox" checked={selected.has(item.approval.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleOne(item.approval.id)} className="mt-1 rounded border-purple-500/30 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {hotLeadIds.has(item.approval.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-amber-300">Hot Lead</span>}
@@ -174,10 +183,10 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                     <span className="text-[11px] text-slate-500"><span className="text-amber-400 font-medium">Personalization</span> · {CHANNEL_LABEL[channel] || channel}</span>
 
                     <div className="ml-auto flex items-center gap-2">
-                      <button disabled={atCapacity || killSwitchActive || action.isPending} title={killSwitchActive ? 'Disabled: global kill switch is active' : undefined} onClick={() => action.mutate({ kind: 'approve', id: item.approval.id })} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 text-white disabled:opacity-50 flex items-center gap-1"><Check className="w-3.5 h-3.5" />Approve</button>
-                      <button onClick={() => toggleExpand(item)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 text-white flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" />Edit &amp; Approve</button>
-                      <RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} />
-                      <button onClick={() => toggleExpand(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#12152d]">
+                      <button disabled={atCapacity || killSwitchActive || action.isPending} title={killSwitchActive ? 'Disabled: global kill switch is active' : undefined} onClick={(e) => { e.stopPropagation(); action.mutate({ kind: 'approve', id: item.approval.id }); }} className={`${approvalActionClass} bg-emerald-700 text-white`}><Check className="w-3.5 h-3.5" />Approve</button>
+                      <button onClick={(e) => { e.stopPropagation(); toggleExpand(item); }} className={`${approvalActionClass} min-w-32 bg-purple-600 text-white`}><Sparkles className="w-3.5 h-3.5" />Edit &amp; Approve</button>
+                      <span onClick={(e) => e.stopPropagation()}><RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} /></span>
+                      <button onClick={(e) => { e.stopPropagation(); toggleExpand(item); }} className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#12152d]">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </button>
                     </div>
@@ -196,7 +205,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                   )}
 
                   {isExpanded && (
-                    <div className="grid md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-purple-500/10">
+                    <div onClick={(e) => e.stopPropagation()} className="grid md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-purple-500/10">
                       <div className="md:col-span-2 space-y-3">
                         <div className="text-[10px] text-slate-500 uppercase tracking-wide">Draft message</div>
                         <textarea
@@ -209,11 +218,11 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                             disabled={atCapacity || killSwitchActive || !draftText.trim() || action.isPending}
                             title={killSwitchActive ? 'Disabled: global kill switch is active' : undefined}
                             onClick={() => action.mutate({ kind: 'edit', id: item.approval.id, value: draftText })}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 text-white disabled:opacity-50"
+                            className={`${approvalActionClass} min-w-32 bg-purple-600 text-white`}
                           >
                             Approve with edits
                           </button>
-                          <RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} className="text-xs font-semibold rounded-lg px-3 py-1.5 bg-rose-700/90 text-white border-none appearance-none cursor-pointer" />
+                          <RejectSelect onReject={(reason) => action.mutate({ kind: 'reject', id: item.approval.id, value: reason })} className={`${approvalActionClass} bg-rose-700/90 text-white border-none appearance-none cursor-pointer`} />
                         </div>
                       </div>
                       <div className="bg-[#070811] border border-purple-500/10 rounded-lg p-3.5">
