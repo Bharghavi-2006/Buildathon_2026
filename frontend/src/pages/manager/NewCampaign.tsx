@@ -9,6 +9,7 @@ import { Step2Targeting } from '../../components/campaign/wizard/Step2Targeting'
 import { Step3Agents } from '../../components/campaign/wizard/Step3Agents';
 import { Step4Sourcing } from '../../components/campaign/wizard/Step4Sourcing';
 import { Step5ChannelsPrompts } from '../../components/campaign/wizard/Step5ChannelsPrompts';
+import { Step6Knowledge } from '../../components/campaign/wizard/Step6Knowledge';
 import { Step6Representatives } from '../../components/campaign/wizard/Step6Representatives';
 import { Step7PreLaunch } from '../../components/campaign/wizard/Step7PreLaunch';
 
@@ -19,7 +20,7 @@ export const NewCampaign: React.FC = () => {
 
   const campaignId = searchParams.get('id');
   const stepParam = parseInt(searchParams.get('step') || '1', 10);
-  const currentStep = isNaN(stepParam) || stepParam < 1 || stepParam > 7 ? 1 : stepParam;
+  const currentStep = isNaN(stepParam) || stepParam < 1 || stepParam > 8 ? 1 : stepParam;
 
   // A step's own "Save & Continue" mutation is the ground truth that the step just
   // completed — trust it immediately rather than waiting for the read-model queries
@@ -73,7 +74,7 @@ export const NewCampaign: React.FC = () => {
     enabled: !!campaignId,
   });
 
-  // 6. Fetch Assigned Reps to verify Step 6 completion
+  // 7. Fetch Assigned Reps to verify Step 7 completion
   const { data: assignedReps = [] } = useQuery({
     queryKey: ['campaign-assigned-reps', campaignId],
     queryFn: () => campaignsApi.getAssignedRepresentatives(campaignId!),
@@ -129,11 +130,19 @@ export const NewCampaign: React.FC = () => {
       unlocked.push(6);
     }
 
-    // Step 6: Completed if at least 1 rep assigned
-    const step6Done = step5Done && assignedReps.length > 0;
+    // Step 6: Knowledge base upload is optional context, so it's unlocked (and treated
+    // as complete) as soon as Channels & Prompts is done — nothing further to gate on.
+    const step6Done = step5Done;
     if (step6Done) {
       completed.push(6);
       unlocked.push(7);
+    }
+
+    // Step 7: Completed if at least 1 rep assigned
+    const step7Done = step6Done && assignedReps.length > 0;
+    if (step7Done) {
+      completed.push(7);
+      unlocked.push(8);
     }
 
     return { completedSteps: completed, unlockedSteps: unlocked };
@@ -257,17 +266,25 @@ export const NewCampaign: React.FC = () => {
         )}
 
         {currentStep === 6 && campaignId && (
-          <Step6Representatives
+          <Step6Knowledge
             campaignId={campaignId}
             onBack={() => goToStep(5)}
-            onSuccess={() => advanceStep(7, [['campaign-assigned-reps', campaignId]])}
+            onSuccess={() => goToStep(7)}
           />
         )}
 
         {currentStep === 7 && campaignId && (
-          <Step7PreLaunch
+          <Step6Representatives
             campaignId={campaignId}
             onBack={() => goToStep(6)}
+            onSuccess={() => advanceStep(8, [['campaign-assigned-reps', campaignId]])}
+          />
+        )}
+
+        {currentStep === 8 && campaignId && (
+          <Step7PreLaunch
+            campaignId={campaignId}
+            onBack={() => goToStep(7)}
             onNavigateToStep={goToStep}
           />
         )}

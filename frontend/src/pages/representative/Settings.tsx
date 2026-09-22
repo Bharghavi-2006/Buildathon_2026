@@ -32,7 +32,7 @@ export const RepresentativeSettings: React.FC = () => {
             <div><div className="text-slate-500">Timezone</div><div className="text-slate-200 mt-0.5">{data.representative_profile.timezone || 'Not configured'}</div></div>
             <div><div className="text-slate-500">Supported channels</div><div className="text-slate-200 mt-0.5">{(data.representative_profile.supported_channels || []).join(', ') || 'Not configured'}</div></div>
           </div>
-          <p className="text-[11px] text-slate-500 pt-2 border-t border-purple-500/10">Working hours, capacity, and campaign assignments are set by your manager and enforced by the backend PolicyEngine — see Guardrails for the live view.</p>
+          <p className="text-[11px] text-slate-500 pt-2 border-t border-purple-500/10">Working hours, capacity, and campaign assignments are set by your manager and enforced automatically by the backend PolicyEngine.</p>
         </div>
       )}
     </div>

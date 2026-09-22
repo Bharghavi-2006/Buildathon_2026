@@ -31,7 +31,7 @@ const STEP_FIX_MAP: Record<string, number> = {
   prospects: 4,
   channels: 5,
   prompts: 5,
-  representative: 6,
+  representative: 7,
   conflicts: 4,
   draft: 1,
 };

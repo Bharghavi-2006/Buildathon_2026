@@ -14,8 +14,9 @@ export const WIZARD_STEPS: StepItem[] = [
   { id: 3, name: 'Agents', shortName: 'Agents', description: 'Enable autonomous agents' },
   { id: 4, name: 'Prospect Sourcing', shortName: 'Sourcing', description: 'Discover & seed list' },
   { id: 5, name: 'Channels & Prompts', shortName: 'Channels', description: 'Outreach & prompts' },
-  { id: 6, name: 'Representatives', shortName: 'Team', description: 'Matching & capacity' },
-  { id: 7, name: 'Pre-Launch & Activate', shortName: 'Launch', description: 'Validation & launch' },
+  { id: 6, name: 'Knowledge Base', shortName: 'Knowledge', description: 'Upload files for RAG & context' },
+  { id: 7, name: 'Representatives', shortName: 'Team', description: 'Matching & capacity' },
+  { id: 8, name: 'Pre-Launch & Activate', shortName: 'Launch', description: 'Validation & launch' },
 ];
 
 interface WizardStepHeaderProps {
