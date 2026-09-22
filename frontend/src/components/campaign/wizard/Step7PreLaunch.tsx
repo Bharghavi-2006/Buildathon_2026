@@ -140,7 +140,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Pre-Launch Checklist & Activation</h2>
+        <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Pre-Launch Checklist & Activation</h2>
         <p className="text-xs text-slate-400 mt-1">
           The backend authoritative engine verifies all campaign invariants before permitting transition from DRAFT to LIVE.
         </p>

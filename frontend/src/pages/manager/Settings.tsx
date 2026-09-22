@@ -95,7 +95,7 @@ export const Settings: React.FC = () => {
   return (
     <div className="space-y-6 pb-12 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Platform Settings</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">Platform Settings</h1>
         <p className="text-xs text-slate-400 mt-1">
           Global configuration, distinct from the per-campaign settings in the campaign wizard. The global kill switch stays in the top bar on every screen — it's too important to bury here.
         </p>

@@ -158,7 +158,7 @@ export const Monitoring: React.FC = () => {
 
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-4xl font-serif italic font-semibold text-white tracking-tight">Rep Monitoring</h1>
+          <h1 className="text-4xl font-serif italic font-medium text-white tracking-tight">Rep Monitoring</h1>
           <p className="text-sm text-slate-400 mt-1">Real-time health view across all reps</p>
         </div>
         <div className="flex items-center gap-3">

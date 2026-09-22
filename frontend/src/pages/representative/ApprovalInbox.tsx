@@ -126,7 +126,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
         <span>Approval Inbox</span><span>/</span><span className="text-slate-300">Draft approvals</span>
       </div>
       <div>
-        <h1 className="text-2xl font-serif italic font-semibold text-white tracking-tight">Draft approvals</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">Draft approvals</h1>
         <p className="text-sm text-slate-400 mt-1">
           {approvals.length} draft{approvals.length === 1 ? '' : 's'} need{approvals.length === 1 ? 's' : ''} your review before {approvals.length === 1 ? 'it can' : 'they can'} be sent.
           {hotLeadIds.size ? ` ${hotLeadIds.size} hot lead${hotLeadIds.size === 1 ? '' : 's'} at the top.` : ''}

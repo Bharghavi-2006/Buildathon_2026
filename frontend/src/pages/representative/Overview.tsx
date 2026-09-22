@@ -42,7 +42,7 @@ export const RepresentativeOverview: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Good Morning{firstName ? `, ${firstName}` : ''}</h1>
+          <h1 className="text-2xl font-serif italic font-medium text-white">Good Morning{firstName ? `, ${firstName}` : ''}</h1>
           <p className="text-sm text-slate-400 mt-1">All assigned work at a glance.</p>
         </div>
         <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-emerald-300">Live Operations</span>

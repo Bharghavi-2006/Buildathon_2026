@@ -48,7 +48,7 @@ export const RepresentativeCampaigns: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif italic font-semibold text-white tracking-tight">Campaigns</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">Campaigns</h1>
         <p className="text-sm text-slate-400 mt-1">Manage the campaigns, audiences and outreach assigned to you.</p>
       </div>
 

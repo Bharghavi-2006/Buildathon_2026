@@ -63,7 +63,7 @@ export const RepresentativeConversations: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Conversations</h1>
+        <h1 className="text-2xl font-serif italic font-medium text-white">Conversations</h1>
         <p className="text-sm text-slate-400">Live back-and-forth with prospects across your assigned campaigns.</p>
       </div>
       <div className="space-y-3">

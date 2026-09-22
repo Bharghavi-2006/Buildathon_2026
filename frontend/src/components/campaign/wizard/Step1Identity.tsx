@@ -91,7 +91,7 @@ export const Step1Identity: React.FC<Step1IdentityProps> = ({ campaignId, onSucc
     <div className="space-y-6 max-w-3xl">
       {/* Step Header */}
       <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Campaign Identity</h2>
+        <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Campaign Identity</h2>
         <p className="text-xs text-slate-400 mt-1">
           Establish the core operational parameters and ownership for this outbound campaign.
         </p>

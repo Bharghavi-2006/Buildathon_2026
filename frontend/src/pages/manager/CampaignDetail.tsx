@@ -155,7 +155,7 @@ export const CampaignDetail: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-white tracking-tight">{campaign.name}</h1>
+              <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">{campaign.name}</h1>
               <StatusBadge status={campaign.status === 'LIVE' ? 'Active' : campaign.status} />
             </div>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">

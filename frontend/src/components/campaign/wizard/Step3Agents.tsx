@@ -145,7 +145,7 @@ export const Step3Agents: React.FC<Step3AgentsProps> = ({
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight">Campaign Autonomous Agents & Engines</h2>
+          <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Campaign Autonomous Agents & Engines</h2>
           <p className="text-xs text-slate-400 mt-1">
             Configure which AI agents and deterministic engines operate autonomously for this campaign.
           </p>

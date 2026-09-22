@@ -197,7 +197,7 @@ export const NewCampaign: React.FC = () => {
             <span className="text-xs font-semibold text-purple-400">New Campaign</span>
           </div>
 
-          <h1 className="text-2xl font-bold text-white tracking-tight mt-1 flex items-center gap-2">
+          <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight mt-1 flex items-center gap-2">
             <PlusCircle className="w-6 h-6 text-purple-400" />
             New Campaign Launch Wizard
           </h1>
