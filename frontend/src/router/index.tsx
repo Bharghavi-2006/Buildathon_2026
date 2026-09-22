@@ -13,6 +13,7 @@ import { Monitoring } from '../pages/manager/Monitoring';
 import { Settings } from '../pages/manager/Settings';
 import { RepresentativeOverview } from '../pages/representative/Overview';
 import { RepresentativeCampaigns } from '../pages/representative/Campaigns';
+import { RepresentativeCampaignDetail } from '../pages/representative/CampaignDetail';
 import { RepresentativeApprovalInbox } from '../pages/representative/ApprovalInbox';
 import { RepresentativeMonitoring } from '../pages/representative/Monitoring';
 import { RepresentativeConversations } from '../pages/representative/Conversations';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <RepresentativeOverview /> },
           { path: 'campaigns', element: <RepresentativeCampaigns /> },
+          { path: 'campaigns/:id', element: <RepresentativeCampaignDetail /> },
           { path: 'approvals', element: <RepresentativeApprovalInbox /> },
           { path: 'conversations', element: <RepresentativeConversations /> },
           { path: 'monitoring', element: <RepresentativeMonitoring /> },

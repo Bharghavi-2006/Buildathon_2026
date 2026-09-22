@@ -100,7 +100,7 @@ export const RepresentativeCampaigns: React.FC = () => {
             {rows.map((item: any) => {
               const p = perf[item.campaign.id];
               return (
-                <tr key={item.campaign.id} onClick={() => navigate(`/campaigns/${item.campaign.id}`)} className="border-t border-purple-500/5 hover:bg-[#12152d] cursor-pointer transition-colors">
+                <tr key={item.campaign.id} onClick={() => navigate(`/rep/campaigns/${item.campaign.id}`)} className="border-t border-purple-500/5 hover:bg-[#12152d] cursor-pointer transition-colors">
                   <td className="px-4 py-3">
                     <div className="text-slate-100 font-semibold">{item.campaign.name}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{item.channels.map((c: any) => CHANNEL_LABEL[c.channel] || c.channel).join(' · ')}</div>
