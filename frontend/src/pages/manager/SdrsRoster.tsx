@@ -10,7 +10,6 @@ import {
   Mail,
   Linkedin,
   Phone,
-  MessageSquare,
   Globe,
   Loader2,
   AlertCircle,
@@ -573,19 +572,22 @@ export const SdrsRoster: React.FC = () => {
                       {/* Channels */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          {channels.map((ch) => (
-                            <span
-                              key={ch}
-                              title={ch}
-                              className="w-6 h-6 rounded-md bg-[#070811] border border-purple-500/10 flex items-center justify-center text-slate-400"
-                            >
-                              {ch === 'email' ? <Mail className="w-3 h-3 text-purple-400" /> : null}
-                              {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-400" /> : null}
-                              {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-400" /> : null}
-                              {ch === 'sms' ? <Smartphone className="w-3 h-3 text-emerald-400" /> : null}
-                              {ch === 'message' || ch === 'messages' ? <MessageSquare className="w-3 h-3 text-emerald-400" /> : null}
-                            </span>
-                          ))}
+                          {channels.map((channel) => {
+                            const ch = channel.toLowerCase();
+                            const icon = ch === 'linkedin'
+                              ? <Linkedin className="w-3.5 h-3.5 text-blue-400" />
+                              : ch === 'voice' || ch === 'call'
+                                ? <Phone className="w-3.5 h-3.5 text-amber-400" />
+                                : ch === 'sms' || ch === 'message' || ch === 'messages'
+                                  ? <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                                  : <Mail className="w-3.5 h-3.5 text-purple-400" />;
+
+                            return (
+                              <span key={channel} title={channel} aria-label={`${channel} channel`} className="w-5 h-5 rounded-md bg-[#070811] flex items-center justify-center">
+                                {icon}
+                              </span>
+                            );
+                          })}
                         </div>
                       </td>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Mail, Search, ShieldAlert, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Linkedin, Mail, MessageSquare, Phone, Search, ShieldAlert, Sparkles } from 'lucide-react';
 import { representativeApi } from '../../api/representative';
 import { controlApi } from '../../api/control';
 import { AlertBanner } from '../../components/ui/AlertBanner';
@@ -8,6 +8,12 @@ import { AlertBanner } from '../../components/ui/AlertBanner';
 const rejectReasons = ['WRONG_PERSONA', 'IRRELEVANT_HOOK', 'WRONG_INFORMATION', 'DUPLICATE_ACCOUNT', 'OTHER'];
 const CHANNEL_LABEL: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', message: 'SMS', voice: 'Voice' };
 const approvalActionClass = 'h-9 min-w-24 inline-flex items-center justify-center gap-1 px-3 text-xs font-semibold rounded-lg disabled:opacity-50';
+
+const ChannelIcon: React.FC<{ channel: string }> = ({ channel }) => {
+  const Icon = channel === 'linkedin' ? Linkedin : channel === 'voice' ? Phone : channel === 'message' ? MessageSquare : Mail;
+  const label = CHANNEL_LABEL[channel] || channel;
+  return <Icon aria-label={`${label} channel`} className="w-4 h-4 flex-shrink-0 text-purple-300" />;
+};
 
 const RejectSelect: React.FC<{ onReject: (reason: string) => void; className?: string }> = ({ onReject, className }) => (
   <select
@@ -186,7 +192,7 @@ export const RepresentativeApprovalInbox: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     {hotLeadIds.has(item.approval.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/40 text-amber-300">Hot Lead</span>}
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-950/50 border border-purple-500/30 text-purple-300">{item.campaign.name}</span>
-                    <span className="text-[11px] text-slate-500"><span className="text-amber-400 font-medium">Personalization</span> · {CHANNEL_LABEL[channel] || channel}</span>
+                    <span className="text-[11px] text-slate-500">Conversation: <span className="text-amber-400 font-medium">Follow-up</span> · Personalization</span>
 
                     <div className="ml-auto flex items-center gap-2">
                       <button disabled={atCapacity || killSwitchActive || action.isPending} title={killSwitchActive ? 'Disabled: global kill switch is active' : undefined} onClick={(e) => { e.stopPropagation(); action.mutate({ kind: 'approve', id: item.approval.id }); }} className={`${approvalActionClass} bg-emerald-700 text-white`}><Check className="w-3.5 h-3.5" />Approve</button>
@@ -200,13 +206,11 @@ export const RepresentativeApprovalInbox: React.FC = () => {
 
                   <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
                     <span className="font-semibold text-white">{item.prospect.first_name} {item.prospect.last_name}</span>
-                    <span className="text-xs text-slate-400">{item.prospect.title}{item.prospect.title ? ' · ' : ''}{item.prospect.industry}</span>
                   </div>
-                  <div className="text-xs text-emerald-300 mt-0.5">Fit {Math.round(item.association.qualification_score || 0)}{item.association.qualification_reason ? ` — ${item.association.qualification_reason}` : ''}</div>
                   {item.conflict && <div className="text-[11px] text-rose-300 mt-1 flex items-center gap-1"><ShieldAlert className="w-3 h-3" />Also active in {item.conflict.other_campaign_name}</div>}
                   {!isExpanded && (
-                    <p className="text-xs text-slate-400 mt-2 truncate flex items-center gap-1.5">
-                      <Mail className="w-3 h-3 flex-shrink-0" />{item.approval.payload?.message || item.approval.payload?.summary}
+                    <p className="text-sm text-slate-300 mt-1.5 truncate flex items-center gap-2">
+                      <ChannelIcon channel={channel} />{item.approval.payload?.message || item.approval.payload?.summary}
                     </p>
                   )}
 

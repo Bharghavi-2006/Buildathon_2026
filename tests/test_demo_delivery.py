@@ -34,6 +34,19 @@ async def test_demo_delivery_redirects_and_is_idempotent(db):
 
 
 @pytest.mark.asyncio
+async def test_approval_delivery_redirects_to_the_designated_inbox(db):
+    campaign = Campaign(name='Approved draft', status='LIVE', demo_mode=False)
+    prospect = Prospect(first_name='Ada', email='ada@example.test')
+    db.add_all([campaign, prospect]); await db.flush()
+    record = await EmailDeliveryService().deliver(
+        db, campaign, prospect, channel='email', body='Approved message',
+        approval_id='approval-1', idempotency_key='approval-1',
+    )
+    assert record.delivery_mode == 'DEMO'
+    assert record.actual_recipient == 'ch24b007@smail.iitm.ac.in'
+
+
+@pytest.mark.asyncio
 async def test_demo_delivery_fails_closed_without_recipient(db):
     campaign = Campaign(name='Unsafe demo', status='LIVE', demo_mode=True)
     prospect = Prospect(first_name='Ada', email='ada@example.test')

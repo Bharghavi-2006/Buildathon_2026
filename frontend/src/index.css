@@ -10,6 +10,14 @@
   }
 }
 
+/* Workspace panels and table shells are deliberately borderless. Form controls,
+   buttons, navigation, and status indicators keep their own borders. */
+.workspace-page :is(div, section)[class*="rounded-"]:is([class~="border"], [class*="border-"]),
+.workspace-page :is(div, section)[class*="overflow-hidden"]:is([class~="border"], [class*="border-"]),
+.workspace-page tr:is([class~="border"], [class*="border-"]) {
+  border-color: transparent !important;
+}
+
 /* Custom scrollbar for dense data views */
 ::-webkit-scrollbar {
   width: 6px;

@@ -35,6 +35,13 @@ class Settings:
     global_kill_switch: bool = os.getenv('GLOBAL_KILL_SWITCH', 'false').lower() == 'true'
     approval_aging_threshold_hours: int = int(os.getenv('APPROVAL_AGING_THRESHOLD_HOURS', '24'))
     capacity_alert_threshold_pct: int = int(os.getenv('CAPACITY_ALERT_THRESHOLD_PCT', '90'))
+    approval_delivery_email: str = os.getenv('APPROVAL_DELIVERY_EMAIL', 'ch24b007@smail.iitm.ac.in')
+    smtp_host: str = os.getenv('SMTP_HOST', '')
+    smtp_port: int = int(os.getenv('SMTP_PORT', '587'))
+    smtp_username: str = os.getenv('SMTP_USERNAME', '')
+    smtp_password: str = os.getenv('SMTP_PASSWORD', '')
+    smtp_from_email: str = os.getenv('SMTP_FROM_EMAIL', '')
+    smtp_use_tls: bool = os.getenv('SMTP_USE_TLS', 'true').lower() == 'true'
     llm_provider: str = os.getenv('LLM_PROVIDER', 'mock')
     dronahq_discovery_webhook_url: str = os.getenv('DRONAHQ_DISCOVERY_WEBHOOK_URL', '')
     dronahq_discovery_webhook_api_key: str = os.getenv('DRONAHQ_DISCOVERY_WEBHOOK_API_KEY', '')

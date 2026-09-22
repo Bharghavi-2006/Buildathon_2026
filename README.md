@@ -45,7 +45,7 @@ This is a buildathon build: some things are fully wired end to end, some are int
 
 - Full representative offboarding pipeline (leave request → manager approval → auto-reassignment by capacity/expertise → completion)
 - "Autonomous Rebalance Mode" (automatic load redistribution across reps)
-- Real external message transport — every channel (including email) simulates sending and writes a full audit trail, but there is no SMTP/Twilio/LinkedIn API client anywhere in the codebase; delivery is always a policy-governed database write, never a live network call to a provider
+- Native LinkedIn, SMS, and voice transports — these channels remain policy-governed simulated delivery records; approved drafts can additionally be sent to the configured demo inbox through SMTP when SMTP credentials are supplied
 - Background/scheduled automation — there is no job scheduler; draft generation and all agent pipeline stages are triggered synchronously by a manager or rep action, never run autonomously on a timer
 
 ## Run directly with Uvicorn (recommended)

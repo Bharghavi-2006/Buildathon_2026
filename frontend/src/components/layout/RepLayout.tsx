@@ -124,7 +124,7 @@ export const RepLayout: React.FC = () => {
       <RepSidebar pendingApprovals={pendingApprovals} escalatedHurdles={escalatedHurdles} />
       <div className="flex-1 flex flex-col min-w-0 bg-[#0D0B1E]">
         <RepTopBar used={used} limit={limit} />
-        <main className="flex-1 p-8 max-w-7xl w-full mx-auto">
+        <main className="workspace-page flex-1 p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
       </div>
