@@ -78,22 +78,19 @@ export const TopBar: React.FC = () => {
 
         {/* Right Controls */}
         <div className="flex items-center gap-4">
-          {/* Global Kill Switch — a red toggle switch, not a button, so its state reads at a glance */}
+          {/* Global Kill Switch — a plain warning badge, not a toggle, so it never implies an on/off slider */}
           {role === 'MANAGER' && (
             <button
               onClick={() => setShowSwitchModal(true)}
-              className={`flex items-center gap-2.5 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                 killSwitchActive
-                  ? 'bg-rose-950/60 border-rose-500/60 text-rose-200'
-                  : 'bg-[#12152d] border-purple-500/20 text-slate-300 hover:border-rose-500/40'
+                  ? 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-900/40'
+                  : 'bg-rose-950/40 border-rose-500/40 text-rose-300 hover:bg-rose-900/40'
               }`}
               title={killSwitchActive ? 'Global kill switch is active — click to reset' : 'Global kill switch is off — click to activate'}
             >
-              <AlertTriangle className={`w-3.5 h-3.5 flex-shrink-0 ${killSwitchActive ? 'text-rose-400' : 'text-slate-500'}`} />
-              <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${killSwitchActive ? 'bg-rose-500' : 'bg-slate-700'}`}>
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${killSwitchActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </span>
-              Kill Switch
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              Global Kill Switch
             </button>
           )}
 

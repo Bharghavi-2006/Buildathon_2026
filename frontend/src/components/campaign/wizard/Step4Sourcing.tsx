@@ -245,7 +245,7 @@ export const Step4Sourcing: React.FC<Step4SourcingProps> = ({
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Prospect Sourcing & Batch Review</h2>
+        <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Prospect Sourcing & Batch Review</h2>
         <p className="text-xs text-slate-400 mt-1">
           Source targeted prospects via Apollo auto-discovery or upload a CSV seed list. Inspect deterministic fit scores and conflict tags.
         </p>

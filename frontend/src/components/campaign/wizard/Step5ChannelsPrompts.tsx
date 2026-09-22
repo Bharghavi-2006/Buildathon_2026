@@ -294,7 +294,7 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Channels & Agent Prompt Configuration</h2>
+        <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Channels & Agent Prompt Configuration</h2>
         <p className="text-xs text-slate-400 mt-1">
           Configure outreach communication channels based on sourced contact availability, and tune agent prompt harnesses.
         </p>

@@ -124,7 +124,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Structured Targeting & ICP</h2>
+        <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Structured Targeting & ICP</h2>
         <p className="text-xs text-slate-400 mt-1">
           This structured definition is the source of truth for the Apollo Discovery Agent and deterministic ICP Fitment Engine.
         </p>

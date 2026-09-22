@@ -22,6 +22,7 @@ import {
   Sparkles,
   ExternalLink,
   HelpCircle,
+  Smartphone,
 } from 'lucide-react';
 import { representativesApi } from '../../api/representatives';
 import { campaignsApi } from '../../api/campaigns';
@@ -238,7 +239,7 @@ export const SdrsRoster: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-purple-400" />
             SDRs
           </h1>
@@ -441,10 +442,10 @@ export const SdrsRoster: React.FC = () => {
             className="px-3 py-1.5 bg-[#070811] border border-purple-500/20 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
           >
             <option value="all">Channel: All</option>
-            <option value="email">Email</option>
             <option value="linkedin">LinkedIn</option>
-            <option value="message">Message</option>
-            <option value="call">Call</option>
+            <option value="sms">SMS</option>
+            <option value="email">Email</option>
+            <option value="voice">Voice</option>
           </select>
 
           {/* Campaign Filter */}
@@ -581,6 +582,7 @@ export const SdrsRoster: React.FC = () => {
                               {ch === 'email' ? <Mail className="w-3 h-3 text-purple-400" /> : null}
                               {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-400" /> : null}
                               {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-400" /> : null}
+                              {ch === 'sms' ? <Smartphone className="w-3 h-3 text-emerald-400" /> : null}
                               {ch === 'message' || ch === 'messages' ? <MessageSquare className="w-3 h-3 text-emerald-400" /> : null}
                             </span>
                           ))}

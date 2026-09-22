@@ -22,6 +22,8 @@ import {
   Award,
   AlertCircle,
   UserPlus,
+  Smartphone,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { representativesApi } from '../../api/representatives';
 import { campaignsApi } from '../../api/campaigns';
@@ -46,6 +48,8 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
   const [capacityInput, setCapacityInput] = useState<number>(50);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [campaignToAssign, setCampaignToAssign] = useState('');
+  const [reassigningCampaignId, setReassigningCampaignId] = useState<string | null>(null);
+  const [reassignTargetId, setReassignTargetId] = useState('');
 
   // Fetch full representative profile, workload, assignments, approvals
   const { data: detail, isLoading, error } = useQuery({
@@ -68,6 +72,13 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
     enabled: showAssignPicker,
   });
 
+  // Other reps, for reassigning an inactive rep's campaign assignments to someone active
+  const { data: allReps = [] } = useQuery({
+    queryKey: ['team-representatives'],
+    queryFn: representativesApi.getRepresentatives,
+    enabled: !!reassigningCampaignId,
+  });
+
   const assignMutation = useMutation({
     mutationFn: async (campaignId: string) => {
       if (!representativeId) return;
@@ -81,6 +92,25 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
       queryClient.invalidateQueries({ queryKey: ['monitoring-representatives'] });
     },
     onError: (err: any) => alert(err.message || 'Failed to assign representative to campaign'),
+  });
+
+  // Hands an inactive rep's campaign assignment to another active rep: add the new
+  // rep to the campaign, then drop the inactive rep from it.
+  const reassignMutation = useMutation({
+    mutationFn: async ({ campaignId, newRepId }: { campaignId: string; newRepId: string }) => {
+      await campaignsApi.assignRepresentative(campaignId, { representative_id: newRepId });
+      await campaignsApi.removeRepresentative(campaignId, representativeId!);
+    },
+    onSuccess: () => {
+      setReassigningCampaignId(null);
+      setReassignTargetId('');
+      queryClient.invalidateQueries({ queryKey: ['representative-detail', representativeId] });
+      queryClient.invalidateQueries({ queryKey: ['team-representatives'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-representatives'] });
+      queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['rep-matches'] });
+    },
+    onError: (err: any) => alert(err.message || 'Failed to reassign campaign to another representative'),
   });
 
   const activeMatch: RepMatchItem | undefined =
@@ -125,7 +155,9 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
   const capacity = profile?.max_active_leads || 50;
   const utilization = Math.round((activeLeads / capacity) * 100);
   const isInactive = profile?.active === false;
-  const assignments = detail?.campaign_assignments || [];
+  // The backend keeps a removed campaign assignment as a soft-deleted row (active: false)
+  // rather than deleting it, so it must be filtered out here to reflect real assignments.
+  const assignments = (detail?.campaign_assignments || []).filter((a) => a.assignment.active !== false);
   const hasAssignments = assignments.length > 0;
   const isInactiveWithAssignments = isInactive && hasAssignments;
 
@@ -427,6 +459,7 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
                       {ch === 'email' ? <Mail className="w-3 h-3 text-purple-300" /> : null}
                       {ch === 'linkedin' ? <Linkedin className="w-3 h-3 text-blue-300" /> : null}
                       {ch === 'call' || ch === 'voice' ? <Phone className="w-3 h-3 text-amber-300" /> : null}
+                      {ch === 'sms' ? <Smartphone className="w-3 h-3 text-emerald-300" /> : null}
                       {ch === 'message' || ch === 'messages' ? <MessageSquare className="w-3 h-3 text-emerald-300" /> : null}
                       {ch}
                     </span>
@@ -559,6 +592,49 @@ export const RepresentativeDetailDrawer: React.FC<RepresentativeDetailDrawerProp
                           </span>
                         </div>
                       </div>
+
+                      {isInactive && (
+                        <div className="pt-2.5 border-t border-amber-500/10">
+                          {reassigningCampaignId === campaign.id ? (
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={reassignTargetId}
+                                onChange={(e) => setReassignTargetId(e.target.value)}
+                                className="flex-1 px-2.5 py-1.5 bg-[#0c0e1f] border border-amber-500/30 rounded-lg text-white text-xs"
+                              >
+                                <option value="">Reassign to...</option>
+                                {allReps
+                                  .filter((r) => r.user.id !== representativeId && r.profile.active !== false)
+                                  .map((r) => (
+                                    <option key={r.user.id} value={r.user.id}>{r.user.name}</option>
+                                  ))}
+                              </select>
+                              <button
+                                disabled={!reassignTargetId || reassignMutation.isPending}
+                                onClick={() => reassignMutation.mutate({ campaignId: campaign.id, newRepId: reassignTargetId })}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black rounded-lg text-xs font-semibold whitespace-nowrap"
+                              >
+                                {reassignMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => { setReassigningCampaignId(null); setReassignTargetId(''); }}
+                                className="text-slate-400 hover:text-white text-xs px-1"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { setReassigningCampaignId(campaign.id); setReassignTargetId(''); }}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-[11px] font-semibold transition-all"
+                            >
+                              <ArrowRightLeft className="w-3.5 h-3.5" />
+                              Reassign to another representative
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

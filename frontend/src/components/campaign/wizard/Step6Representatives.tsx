@@ -215,7 +215,7 @@ export const Step6Representatives: React.FC<Step6RepresentativesProps> = ({
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight">Assign Representatives & Capacity</h2>
+          <h2 className="text-lg font-serif italic font-medium text-white tracking-tight">Assign Representatives & Capacity</h2>
           <p className="text-xs text-slate-400 mt-1">
             Review SDR matching scores, active capacity loads, and configure campaign routing rules.
           </p>

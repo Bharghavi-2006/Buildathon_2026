@@ -25,7 +25,7 @@ export const RepresentativeGuardrails: React.FC = () => {
 
   return <div className="space-y-6">
     <div>
-      <h1 className="text-2xl font-bold text-white">Guardrails</h1>
+      <h1 className="text-2xl font-serif italic font-medium text-white">Guardrails</h1>
       <p className="text-sm text-slate-400">A read-only view of what you can and cannot do right now. Backend policy is always authoritative.</p>
     </div>
 

@@ -72,7 +72,7 @@ export const RepresentativeCampaignDetail: React.FC = () => {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-white tracking-tight">{campaign.name}</h1>
+            <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">{campaign.name}</h1>
             <StatusBadge status={campaign.status} />
           </div>
           <p className="text-sm text-slate-400 mt-1">

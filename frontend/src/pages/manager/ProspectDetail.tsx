@@ -95,7 +95,7 @@ export const ProspectDetail: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-white tracking-tight">
+                <h1 className="text-2xl font-serif italic font-medium text-white tracking-tight">
                   {prospect.first_name} {prospect.last_name}
                 </h1>
                 <StatusBadge status={prospect.lifecycle_status} />

@@ -118,7 +118,7 @@ export const Dashboard: React.FC = () => {
       {/* Top Header matching Screenshot 2 */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-serif italic font-semibold text-white tracking-tight">
+          <h1 className="text-4xl font-serif italic font-medium text-white tracking-tight">
             Dashboard
           </h1>
           <p className="text-sm text-slate-400 mt-1">
@@ -145,8 +145,8 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* 4 Metric Cards — Active Alerts is the escalation signal, so it gets the wider "urgent" slot. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* 4 equally-sized metric widgets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           value={dashboard.pending_approvals}
           label="Pending Approvals"
@@ -168,15 +168,13 @@ export const Dashboard: React.FC = () => {
           color="emerald"
           onClick={() => setActivePanel('meetings')}
         />
-        <div className="sm:col-span-2 lg:col-span-2">
-          <MetricCard
-            value={dashboard.active_alerts}
-            label="Active Alerts"
-            subtext={dashboard.active_alerts > 0 ? `${alerts?.length ?? 0} issue${(alerts?.length ?? 0) === 1 ? '' : 's'} across the platform` : 'All systems normal'}
-            color="purple"
-            onClick={() => setActivePanel('alerts')}
-          />
-        </div>
+        <MetricCard
+          value={dashboard.active_alerts}
+          label="Active Alerts"
+          subtext={dashboard.active_alerts > 0 ? `${alerts?.length ?? 0} issue${(alerts?.length ?? 0) === 1 ? '' : 's'} across the platform` : 'All systems normal'}
+          color="purple"
+          onClick={() => setActivePanel('alerts')}
+        />
       </div>
 
       {/* Campaigns Section */}
