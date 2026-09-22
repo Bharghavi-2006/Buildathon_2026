@@ -259,6 +259,12 @@ export const campaignsApi = {
     return await apiClient.get('/api/manager/integrations-status');
   },
 
+  // Settings: wipe all campaign/prospect/conversation data and reseed the canonical
+  // demo dataset. Demo mode only; accounts (logins) are never touched.
+  resetDemoData: async (): Promise<{ status: string }> => {
+    return await apiClient.post('/api/manager/admin/reset-demo-data');
+  },
+
   // Sender bots: draft outreach on a specific channel through the agent pipeline
   // (demo fallback when no webhook is configured) and queue it for rep approval.
   generateDrafts: async (id: string, channel: 'email' | 'linkedin' | 'sms', limit: number = 10): Promise<{ channel: string; drafted: string[]; skipped: Array<{ prospect_id: string; reason: string }> }> => {
