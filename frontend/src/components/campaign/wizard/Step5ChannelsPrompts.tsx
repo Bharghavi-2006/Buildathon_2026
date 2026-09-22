@@ -284,7 +284,7 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
       )}
 
       {/* SECTION 1: CHANNELS */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-6">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-6">
         <div className="flex items-center justify-between border-b border-purple-500/10 pb-4">
           <div>
             <h3 className="text-sm font-bold text-white">Outreach Channels & Pacing</h3>
@@ -495,7 +495,7 @@ export const Step5ChannelsPrompts: React.FC<Step5ChannelsPromptsProps> = ({
       </div>
 
       {/* SECTION 2: PROMPT CONFIGURATION */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-6">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-6">
         <div className="border-b border-purple-500/10 pb-4">
           <h3 className="text-sm font-bold text-white">Agent Prompt Configuration & Harnesses</h3>
           <p className="text-[11px] text-slate-400 mt-0.5">

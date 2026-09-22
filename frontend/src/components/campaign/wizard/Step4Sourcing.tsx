@@ -281,7 +281,7 @@ export const Step4Sourcing: React.FC<Step4SourcingProps> = ({
       )}
 
       {/* Sourcing Mode Tabs */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-6">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-6">
         <div className="flex items-center gap-2 border-b border-purple-500/10 pb-4">
           <button
             type="button"
@@ -450,7 +450,7 @@ export const Step4Sourcing: React.FC<Step4SourcingProps> = ({
             </div>
 
             {/* Selection Controls */}
-            <div className="flex items-center justify-between flex-wrap gap-2 text-xs py-2 px-3 bg-white/5 rounded-xl border border-purple-500/10">
+            <div className="flex items-center justify-between flex-wrap gap-2 text-xs py-2 px-3 bg-white/5 rounded-xl border border-[#7C3AED]">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -477,7 +477,7 @@ export const Step4Sourcing: React.FC<Step4SourcingProps> = ({
             </div>
 
             {/* Candidates Table */}
-            <div className="overflow-x-auto rounded-xl border border-purple-500/10 bg-[#070811]">
+            <div className="overflow-x-auto rounded-xl border border-[#7C3AED] bg-[#070811]">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-purple-500/10 text-slate-400 font-semibold bg-white/5">

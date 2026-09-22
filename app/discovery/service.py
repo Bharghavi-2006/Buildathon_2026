@@ -64,7 +64,23 @@ class MockDiscoveryProvider:
     async def discover(self, campaign_id: str, icp: dict, requested_count: int) -> DiscoveryResult:
         roles=icp.get('target_roles') or ['VP Engineering']; industries=icp.get('industries') or ['B2B SaaS']; geography=icp.get('geography') or 'US'
         candidates=[]
-        for index,(name,title,size,score) in enumerate([('Jordan Taylor',roles[0],500,92),('Casey Morgan','Engineering Manager',75,61),('Avery Stone',roles[0],800,88)][:requested_count]):
+        # 10 deterministic candidates, 8 at/above the default 60% eligibility threshold and
+        # 2 below it -- so the wizard's default "Select Eligible" + "Approve & Enroll" flow
+        # enrolls exactly 8, giving the campaign detail funnel a proper multi-stage view
+        # (10 discovered -> 8 researched -> 6 ICP fitment, see select_prospects()).
+        demo_candidates=[
+            ('Jordan Taylor',roles[0],500,92),
+            ('Diego Alvarez',roles[0],2000,90),
+            ('Avery Stone',roles[0],800,88),
+            ('Elena Cruz',roles[0],950,83),
+            ('Priya Nair',roles[0],1200,76),
+            ('Sam Osei','Director of Engineering',650,68),
+            ('Grace Kim','Head of Platform',400,65),
+            ('Casey Morgan','Engineering Manager',75,61),
+            ('Marcus Webb','VP Product',300,55),
+            ('Nina Patel','Engineering Lead',220,48),
+        ]
+        for index,(name,title,size,score) in enumerate(demo_candidates[:requested_count]):
             first,last=name.split(); candidates.append(DiscoveryCandidate(source='APOLLO',source_id=f'mock-apollo-{index+1}',person_name=name,first_name=first,last_name=last,title=title,email=f'{first.lower()}.{last.lower()}@apollo-demo.example',linkedin_url=f'https://linkedin.example/in/{first.lower()}-{last.lower()}',company_name=f'{last} Systems',company_domain=f'{last.lower()}systems.example',company_size=size,industry=industries[0],fit_score=score,fit_reasons=['Role evaluated against ICP','Industry evaluated against ICP'],matched_criteria=['geography:'+geography,'industry:'+industries[0]],unmatched_criteria=[] if score>=80 else ['company size'],confidence='HIGH' if score>=85 else 'MEDIUM'))
         return DiscoveryResult(campaign_id=campaign_id,candidates=candidates,total_found=len(candidates),search_summary='Demo discovery provider using a synthetic Apollo-compatible contract')
 

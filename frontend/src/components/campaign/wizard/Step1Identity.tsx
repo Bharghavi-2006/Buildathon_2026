@@ -111,7 +111,7 @@ export const Step1Identity: React.FC<Step1IdentityProps> = ({ campaignId, onSucc
         </div>
       )}
 
-      <div className="space-y-5 bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl">
+      <div className="space-y-5 bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl">
         {/* Campaign Name */}
         <div>
           <label className="block text-xs font-semibold text-slate-200 mb-1.5">

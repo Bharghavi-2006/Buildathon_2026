@@ -71,23 +71,21 @@ const RepTopBar: React.FC<{ used: number; limit: number }> = ({ used, limit }) =
   const name = currentUser?.user?.name || 'Representative';
 
   return (
-    <header className="h-16 border-b border-purple-500/10 bg-[#302654]/90 backdrop-blur-md px-6 flex items-center justify-end gap-3 sticky top-0 z-30">
-      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-200' : 'bg-[#12152d] border-purple-500/20 text-slate-200'}`}>
+    <header className="h-16 bg-[#302654] px-6 flex items-center justify-end gap-5 sticky top-0 z-30">
+      <div className={`flex items-center gap-2 text-xs font-semibold ${killActive ? 'text-rose-300' : 'text-slate-200'}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
         {used} / {limit} capacity
       </div>
-      <div className="relative">
-        <button
-          title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
-          className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all ${killActive ? 'bg-rose-950/50 border-rose-500/40 text-rose-300' : 'bg-[#12152d] border-purple-500/15 text-slate-300 hover:border-purple-500/40'}`}
-        >
-          <Bell className="w-4 h-4" />
-        </button>
-      </div>
+      <button
+        title={killActive ? 'Global kill switch is active — outbound is paused platform-wide' : 'No active alerts'}
+        className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${killActive ? 'text-rose-300' : 'text-slate-300 hover:text-white'}`}
+      >
+        <Bell className="w-4 h-4" />
+      </button>
       <div className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className="w-9 h-9 rounded-full bg-purple-600/40 border border-purple-500/50 flex items-center justify-center text-xs font-bold text-purple-100"
+          className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white"
         >
           {name.charAt(0).toUpperCase()}
         </button>

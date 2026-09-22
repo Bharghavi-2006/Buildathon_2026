@@ -187,7 +187,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Dense Campaigns Table */}
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -292,7 +292,7 @@ export const Dashboard: React.FC = () => {
               <div className="space-y-3">
                 {approvalsSummary && (
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-[#0d0f22] border border-purple-500/10 rounded-lg p-3">
+                    <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-lg p-3">
                       <div className="text-xl font-bold text-white">{approvalsSummary.total_pending}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Total pending</div>
                     </div>
@@ -300,7 +300,7 @@ export const Dashboard: React.FC = () => {
                       <div className="text-xl font-bold text-rose-400">{approvalsSummary.aging_count}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Aging &gt;{approvalsSummary.aging_threshold_hours}h</div>
                     </div>
-                    <div className="bg-[#0d0f22] border border-purple-500/10 rounded-lg p-3">
+                    <div className="bg-[#0d0f22] border border-[#7C3AED] rounded-lg p-3">
                       <div className="text-xl font-bold text-white">{approvalsSummary.oldest_age_hours}h</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Oldest waiting</div>
                     </div>
@@ -327,7 +327,7 @@ export const Dashboard: React.FC = () => {
                   <>
                     <h3 className="text-xs font-semibold uppercase text-slate-500 pt-3">By representative</h3>
                     {approvalsSummary.by_representative.map((r) => (
-                      <div key={r.representative_id} className="flex justify-between items-center text-xs bg-[#0d0f22] border border-purple-500/10 rounded-lg px-3 py-2">
+                      <div key={r.representative_id} className="flex justify-between items-center text-xs bg-[#0d0f22] border border-[#7C3AED] rounded-lg px-3 py-2">
                         <span className="text-slate-200">{r.representative}</span>
                         <span className="text-slate-400">{r.pending} pending{r.aging > 0 ? ` · ${r.aging} aging` : ''}</span>
                       </div>

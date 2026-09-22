@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.api.auth import current_identity, require_manager
 from app.api.manager import router as manager_router
 from app.delivery.service import EmailDeliveryService, DeliveryError
+from app.delivery.email_sender import send_approval_notification
 from app.dronahq.registry import public_agent_status
 from app.hurdles.service import ensure_hurdles
 from fastapi.middleware.cors import CORSMiddleware
@@ -225,6 +226,11 @@ async def apply_approval(approval, actor, db, override=False, edited_content=Non
     approval.status='SENT'; approval.decided_by_id=actor.id; approval.decision_note='Manager emergency override' if override else 'Approved by representative'
     db.add(OutreachEvent(campaign_id=campaign.id,prospect_id=prospect.id,channel=channel,status='SENT',content=payload.get('message',''))); cp.last_contacted_at=datetime.utcnow(); cp.current_stage='DELIVERED'; prospect.lifecycle_status='CONTACTED'
     db.add(AuditLog(action='MANAGER_APPROVAL_OVERRIDE' if override else ('APPROVAL_EDITED_AND_APPROVED' if edited_content is not None else 'APPROVAL_APPROVED'),entity_type='approval',entity_id=approval.id,details={**details,'new_state':'SENT','delivery_id':delivery.id,'delivery_mode':delivery.delivery_mode,'intended_recipient':delivery.intended_recipient,'actual_recipient':delivery.actual_recipient})); await db.commit()
+    send_approval_notification(
+        prospect_name=f'{prospect.first_name} {prospect.last_name}'.strip(),
+        campaign_name=campaign.name, channel=channel, message=payload.get('message',''),
+        approved_by=actor.name or actor.email,
+    )
     return {'allowed':True,'scheduled':False,'approval':approval_view(approval,campaign,prospect,cp),'policy':result.model_dump(),'delivery':{'id':delivery.id,'mode':delivery.delivery_mode,'intended_recipient':delivery.intended_recipient,'actual_recipient':delivery.actual_recipient}}
 
 @app.get('/api/rep/approvals')

@@ -24,7 +24,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`bg-[#0d0f22] border border-purple-500/10 hover:border-purple-500/30 rounded-xl p-5 transition-all shadow-sm ${
+      className={`bg-[#0d0f22] border border-[#7C3AED] hover:border-purple-500/30 rounded-xl p-5 transition-all shadow-sm ${
         onClick ? 'cursor-pointer hover:bg-[#12152d]' : ''
       }`}
     >

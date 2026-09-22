@@ -53,7 +53,7 @@ export const Step6Knowledge: React.FC<Step6KnowledgeProps> = ({
         </p>
       </div>
 
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-4">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-4">
         <div className="flex items-center gap-2.5 border-b border-purple-500/10 pb-4">
           <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center flex-shrink-0">
             <BookOpen className="w-4 h-4" />
@@ -67,7 +67,7 @@ export const Step6Knowledge: React.FC<Step6KnowledgeProps> = ({
         </div>
 
         {knowledgeDocs.length > 0 && (
-          <div className="divide-y divide-purple-500/5 border border-purple-500/10 rounded-xl overflow-hidden">
+          <div className="divide-y divide-purple-500/5 border border-[#7C3AED] rounded-xl overflow-hidden">
             {knowledgeDocs.map((doc) => (
               <div key={doc.id} className="flex items-start justify-between gap-3 p-3 bg-[#070811]">
                 <div className="min-w-0">

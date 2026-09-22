@@ -137,7 +137,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
         </div>
       )}
 
-      <div className="space-y-6 bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl">
+      <div className="space-y-6 bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl">
         {/* Target Geography */}
         <div>
           <div className="flex items-center gap-2 mb-1.5">
@@ -216,7 +216,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
                 key={role}
                 type="button"
                 onClick={() => addChip(role, roles, setRoles)}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-purple-500/10 transition-colors"
+                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-[#7C3AED] transition-colors"
               >
                 + {role}
               </button>
@@ -280,7 +280,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
                 key={ind}
                 type="button"
                 onClick={() => addChip(ind, industries, setIndustries)}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-purple-500/10 transition-colors"
+                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-[#7C3AED] transition-colors"
               >
                 + {ind}
               </button>
@@ -373,7 +373,7 @@ export const Step2Targeting: React.FC<Step2TargetingProps> = ({
                 key={tech}
                 type="button"
                 onClick={() => addChip(tech, technologies, setTechnologies)}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-purple-500/10 transition-colors"
+                className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 hover:bg-purple-950/40 text-slate-400 hover:text-purple-300 border border-[#7C3AED] transition-colors"
               >
                 + {tech}
               </button>

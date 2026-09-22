@@ -168,7 +168,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
 
       {/* Overview Snapshot Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-xl p-3.5 flex items-center gap-3">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-xl p-3.5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center">
             <Users className="w-4 h-4" />
           </div>
@@ -178,7 +178,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-xl p-3.5 flex items-center gap-3">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-xl p-3.5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
             <Bot className="w-4 h-4" />
           </div>
@@ -188,7 +188,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-xl p-3.5 flex items-center gap-3">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-xl p-3.5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
             <Mail className="w-4 h-4" />
           </div>
@@ -198,7 +198,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
           </div>
         </div>
 
-        <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-xl p-3.5 flex items-center gap-3">
+        <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-xl p-3.5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-400 flex items-center justify-center">
             <ShieldCheck className="w-4 h-4" />
           </div>
@@ -210,7 +210,7 @@ export const Step7PreLaunch: React.FC<Step7PreLaunchProps> = ({
       </div>
 
       {/* Checklist Card */}
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl p-6 shadow-xl space-y-4">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-purple-500/10 pb-3">
           <h3 className="text-sm font-bold text-white">Launch Verification Checklist</h3>
           <span

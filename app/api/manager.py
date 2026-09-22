@@ -376,16 +376,56 @@ async def approve_batch(id:str,db:AsyncSession=Depends(get_session),identity=Dep
     await draft(id,db); batches=(await db.scalars(select(ProspectBatch).where(ProspectBatch.campaign_id==id,ProspectBatch.status=='PREVIEW'))).all()
     for b in batches: b.status='APPROVED'
     audit(db,'PROSPECT_BATCH_APPROVED','campaign',id,{'count':len(batches)}); await db.commit(); return {'approved_batches':len(batches)}
+async def _auto_progress_prospect(db,c,p,cp,icp,setup,*,do_fitment:bool):
+    """Best-effort demo realism: runs the same RESEARCH (and optionally ICP_FITMENT)
+    steps a manager could trigger by hand from the prospect detail page, so a freshly
+    enrolled discovery batch shows a believable multi-stage funnel immediately rather
+    than every prospect sitting at PREVIEW until clicked through one at a time. Only
+    ever applied to prospects that carry discovery source metadata; never raises --
+    a failure here just leaves that prospect at its prior stage."""
+    source_data=p.metadata_ or {}
+    if not source_data.get('source_id'): return
+    candidate={'source':source_data.get('discovery_source'),'source_id':source_data['source_id'],'person_name':f'{p.first_name} {p.last_name}'.strip(),'first_name':p.first_name,'last_name':p.last_name,'title':p.title,'email':p.email,'linkedin_url':p.linkedin_url,'company_name':source_data.get('company_name'),'company_domain':p.website,'company_size':p.employee_count,'industry':p.industry,'source_url':source_data.get('source_url',''),'discovery_signals':source_data.get('discovery_signals',[]),'unverified_criteria':source_data.get('unmatched_criteria',[])}
+    research_run=AgentRun(campaign_id=c.id,prospect_id=p.id,agent_type='RESEARCH',status='RUNNING',input_data={'candidate_source_id':candidate['source_id'],'tool':'WEB_SEARCH'}); db.add(research_run); await db.flush()
+    try:
+        result=await ResearchService().research_candidate(c.id,c.name,icp,candidate)
+    except DiscoveryProviderError:
+        research_run.status='FAILED'; return
+    research_run.status='COMPLETED'
+    record=ProspectResearch(campaign_id=c.id,prospect_id=p.id,status=result.candidate_status,research_summary=result.research_summary,person_research=result.person_research,company_research=result.company_research,icp_evidence=[x.model_dump() for x in result.icp_evidence],business_context=result.business_context,personalization_signals=result.personalization_signals,sources=result.sources,uncertainties=result.uncertainties,agent_run_id=research_run.id)
+    db.add(record); await db.flush(); p.lifecycle_status='RESEARCHED'
+    if not do_fitment: return
+    fitment_run=AgentRun(campaign_id=c.id,prospect_id=p.id,agent_type='ICP_FITMENT',status='RUNNING',input_data={'research_id':record.id,'engine_version':'icp-fitment-v1','execution_type':'DETERMINISTIC'}); db.add(fitment_run); await db.flush()
+    try:
+        fitment=ICPFitmentEngine().evaluate({'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size},{'person_research':record.person_research,'company_research':record.company_research,'business_context':record.business_context,'uncertainties':record.uncertainties},{'title':p.title,'industry':p.industry,'location':p.location,'employee_count':p.employee_count},setup.exclusion_criteria)
+    except Exception:
+        fitment_run.status='FAILED'; return
+    fitment_run.status='COMPLETED'
+    db.add(ProspectFitment(campaign_id=c.id,prospect_id=p.id,research_id=record.id,**fitment))
+    cp.qualification_status=fitment['overall_fit_status']; cp.qualification_score=fitment['overall_fit_score']; cp.qualification_reason='; '.join(fitment['key_fit_signals']+fitment['key_risk_factors']); cp.current_stage=fitment['recommended_next_stage']
+    p.lifecycle_status='QUALIFIED' if fitment['overall_fit_status']=='STRONG_FIT' else p.lifecycle_status
+
 @router.post('/campaigns/{id}/prospects/select')
 async def select_prospects(id:str,data:ProspectSelectIn,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):
-    c=await draft(id,db); approved={x for b in (await db.scalars(select(ProspectBatch).where(ProspectBatch.campaign_id==id,ProspectBatch.status=='APPROVED'))).all() for x in b.prospect_ids}; selected=[]; rejected=[]
+    c=await draft(id,db); approved={x for b in (await db.scalars(select(ProspectBatch).where(ProspectBatch.campaign_id==id,ProspectBatch.status=='APPROVED'))).all() for x in b.prospect_ids}; selected=[]; rejected=[]; enrolled=[]
     for pid in data.prospect_ids:
         p=await db.get(Prospect,pid)
         if not p or pid not in approved: rejected.append({'prospect_id':pid,'reason':'Not in approved batch'}); continue
         result=await fit(db,c,p)
         if result['suppressed'] or any(x['blocking'] for x in result['conflicts']) or result['fit_score']<data.min_fit_score: rejected.append({'prospect_id':pid,'reason':'Suppressed, conflict, or below fit threshold'}); continue
-        if not await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==pid)): db.add(CampaignProspect(campaign_id=id,prospect_id=pid,qualification_status='PREVIEW',qualification_score=result['fit_score'],qualification_reason='; '.join(result['fit_reasons'])))
-        selected.append(pid)
+        cp=await db.scalar(select(CampaignProspect).where(CampaignProspect.campaign_id==id,CampaignProspect.prospect_id==pid))
+        if not cp:
+            cp=CampaignProspect(campaign_id=id,prospect_id=pid,qualification_status='PREVIEW',qualification_score=result['fit_score'],qualification_reason='; '.join(result['fit_reasons'])); db.add(cp); await db.flush()
+        selected.append(pid); enrolled.append((p,cp))
+
+    # Demo funnel realism: research the first 8 newly-enrolled prospects and carry the
+    # first 6 of those through ICP fitment too, so the campaign's pipeline funnel shows
+    # a proper multi-stage drop-off right after a discovery batch is enrolled.
+    icp={'geography':c.target_geography,'target_roles':c.target_roles,'industries':c.target_industries,'company_size':c.company_size}
+    setup=await setup_for(c,db)
+    for index,(p,cp) in enumerate(enrolled[:8]):
+        await _auto_progress_prospect(db,c,p,cp,icp,setup,do_fitment=index<6)
+
     audit(db,'PROSPECT_SELECTED','campaign',id,{'prospect_ids':selected}); await db.commit(); return {'selected':selected,'rejected':rejected}
 @router.get('/campaigns/{id}/channels')
 async def channels(id:str,db:AsyncSession=Depends(get_session),identity=Depends(require_manager)):

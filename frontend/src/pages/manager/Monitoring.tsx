@@ -215,7 +215,7 @@ export const Monitoring: React.FC = () => {
         />
       </div>
 
-      <div className="bg-[#0c0e1f] border border-purple-500/10 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-[#0c0e1f] border border-[#7C3AED] rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -324,7 +324,7 @@ const AdjustLimitsModal: React.FC<{ reps: RepresentativeItem[]; onClose: () => v
           {reps.map((rep) => {
             const draft = drafts[rep.user.id];
             return (
-              <div key={rep.user.id} className="flex items-center justify-between gap-3 bg-[#0d0f22] border border-purple-500/10 rounded-xl px-4 py-3">
+              <div key={rep.user.id} className="flex items-center justify-between gap-3 bg-[#0d0f22] border border-[#7C3AED] rounded-xl px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold text-white">{rep.user.name}</div>
                   <div className="text-xs text-slate-400">{rep.active_leads} / {rep.profile.max_active_leads} leads assigned</div>
